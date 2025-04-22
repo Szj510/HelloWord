@@ -1,0 +1,87 @@
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes, Link, useNavigate } from 'react-router-dom';
+import './App.css';
+import Container from '@mui/material/Container';
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Button from '@mui/material/Button';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+
+// 引入页面组件
+import RegisterPage from './pages/RegisterPage';
+import LoginPage from './pages/LoginPage';
+import HomePage from './pages/HomePage';
+import WordsPage from './pages/WordsPage';
+import WordbooksPage from './pages/WordbooksPage'; // <--- 引入 WordbooksPage
+import LearningPage from './pages/LearningPage';
+
+// 引入私有路由组件 和 Auth Context
+import PrivateRoute from './components/PrivateRoute';
+import { useAuth } from './context/AuthContext';
+
+// Navbar 组件
+const Navbar = () => {
+  const { isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+      logout();
+      navigate('/login');
+  };
+
+  return (
+    <AppBar position="static" sx={{ marginBottom: 2 }}>
+      <Toolbar>
+        <Typography variant="h6" component={Link} to={isAuthenticated ? "/home" : "/"} sx={{ flexGrow: 1, color: 'inherit', textDecoration: 'none' }}>
+          HelloWord
+        </Typography>
+        {isAuthenticated ? (
+          <Box>
+            <Button color="inherit" component={Link} to="/home">主页</Button>
+            <Button color="inherit" component={Link} to="/words">单词列表</Button>
+            {/* V--- 添加到“我的单词书”页面的链接 ---V */}
+            <Button color="inherit" component={Link} to="/wordbooks">我的单词书</Button>
+            <Button color="inherit" onClick={handleLogout}>退出登录</Button>
+          </Box>
+        ) : (
+          <Box>
+            <Button color="inherit" component={Link} to="/login">登录</Button>
+            <Button color="inherit" component={Link} to="/register">注册</Button>
+             {/* 未登录时也可以查看单词列表 */}
+            <Button color="inherit" component={Link} to="/words">单词列表</Button>
+          </Box>
+        )}
+      </Toolbar>
+    </AppBar>
+  );
+};
+
+// App 函数
+function App() {
+  return (
+    <Router>
+      <Navbar />
+      <Container maxWidth="lg" className="App" style={{ marginTop: '20px' }}>
+        <Routes>
+          {/* ... 公开路由 ... */}
+          <Route path="/" element={<LoginPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/words" element={<WordsPage />} />
+
+          {/* 私有/受保护路由 */}
+          <Route element={<PrivateRoute />}>
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/wordbooks" element={<WordbooksPage />} />
+            {/* V--- 添加学习页面的私有路由 ---V */}
+            <Route path="/learn/:wordbookId" element={<LearningPage />} />
+          </Route>
+
+        </Routes>
+      </Container>
+    </Router>
+  );
+}
+
+export default App;

@@ -1,0 +1,33 @@
+const jwt = require('jsonwebtoken');
+require('dotenv').config({ path: '../.env' }); // 确保能加载 .env
+
+module.exports = function(req, res, next) {
+  // 1. 从请求头获取 token
+  const authHeader = req.header('Authorization'); // 'Bearer TOKEN'
+
+  // 2. 检查 token 是否存在
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ msg: '无有效 Token，授权被拒绝' });
+  }
+
+  // 提取 Token 部分
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+      return res.status(401).json({ msg: 'Token 格式错误，授权被拒绝' });
+  }
+
+
+  try {
+    // 3. 验证 token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // 4. 将解码后的用户信息（特别是 user id）附加到请求对象上
+    req.user = decoded.user; // 我们在签发 token 时 payload 是 { user: { id: ... } }
+
+    // 5. 调用下一个中间件或路由处理器
+    next();
+  } catch (err) {
+    console.error('Token 验证失败:', err.message);
+    res.status(401).json({ msg: 'Token 无效' });
+  }
+};
