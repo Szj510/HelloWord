@@ -3,6 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middleware/auth'); // 引入认证中间件
 const WordBook = require('../models/WordBook'); // 引入 WordBook 模型
 const Word = require('../models/Word'); // 引入 Word 模型
+const LearningRecord = require('../models/LearningRecord');
 const mongoose = require('mongoose'); // 用于验证 ObjectId
 
 // --- 创建新的单词书 ---
@@ -49,37 +50,68 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// --- 获取特定单词书的详情 ---
+// --- 获取特定单词书的详情 (修改: 包含用户学习状态) ---
 // @route   GET api/wordbooks/:id
-// @desc    获取指定 ID 的单词书详情 (包含单词列表)
+// @desc    获取指定 ID 的单词书详情 (包含单词列表及其学习状态)
 // @access  Private (需要验证所有权)
 router.get('/:id', authMiddleware, async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+  const wordbookId = req.params.id;
+  const userId = req.user.id;
+
+  if (!mongoose.Types.ObjectId.isValid(wordbookId)) {
       return res.status(400).json({ msg: '无效的单词书 ID' });
   }
 
   try {
-    const wordbook = await WordBook.findById(req.params.id)
-                                    .populate('words', 'spelling phonetic meaning difficulty'); // 填充单词信息
+    // 1. 查找单词书，同时填充基础单词信息
+    // 使用 lean() 提高性能，因为我们将构造新的返回对象
+    const wordbook = await WordBook.findById(wordbookId)
+                                    .populate({
+                                        path: 'words',
+                                        select: 'spelling phonetic meaning difficulty tags' // 选择需要的 Word 字段
+                                     })
+                                    .lean(); // 使用 lean
 
-    if (!wordbook) {
-      return res.status(404).json({ msg: '单词书未找到' });
+    if (!wordbook) { return res.status(404).json({ msg: '单词书未找到' }); }
+    if (wordbook.owner.toString() !== userId) { return res.status(403).json({ msg: '无权访问此单词书' }); }
+
+    // 如果单词书为空，直接返回
+    if (!wordbook.words || wordbook.words.length === 0) {
+        return res.json({ ...wordbook, words: [] }); // 确保 words 是空数组
     }
 
-    // 检查所有权
-    if (wordbook.owner.toString() !== req.user.id) {
-       return res.status(403).json({ msg: '无权访问此单词书' });
-    }
+    // 2. 获取这些单词的学习记录状态
+    const wordIds = wordbook.words.map(w => w._id); // 获取所有单词的 ID
+    const learningRecords = await LearningRecord.find({
+        user: userId,
+        word: { $in: wordIds } // 查询条件：用户 ID 和 单词 ID 列表
+    }).select('word status').lean(); // 只选择 word ID 和 status 字段
 
-    res.json(wordbook);
+    // 3. 创建一个 单词ID -> 状态 的映射，方便查找
+    const statusMap = learningRecords.reduce((map, record) => {
+        // record.word 是 ObjectId，需要转为字符串作为 key
+        map[record.word.toString()] = record.status;
+        return map;
+    }, {});
+
+    // 4. 将学习状态合并到单词数据中
+    // 创建一个新的单词数组，包含状态信息
+    const wordsWithStatus = wordbook.words.map(word => ({
+        ...word, // 展开原始单词信息 (spelling, phonetic, etc.)
+        // 从 map 中查找状态，如果找不到（说明用户还没学过这个词），则默认为 'New'
+        status: statusMap[word._id.toString()] || 'New'
+    }));
+
+    // 5. 返回合并后的数据
+    // 返回原始单词书信息，但用包含状态的单词数组替换原来的 words 数组
+    res.json({ ...wordbook, words: wordsWithStatus });
+
   } catch (err) {
     console.error('获取单词书详情错误:', err.message);
-    if (err.kind === 'ObjectId') {
-        return res.status(404).json({ msg: '单词书未找到 (无效ID)' });
-    }
+    if (err.kind === 'ObjectId') { return res.status(404).json({ msg: '单词书未找到 (无效ID)' }); }
     res.status(500).send('服务器错误');
   }
-});
+})
 
 // --- 添加单词到单词书 ---
 // @route   POST api/wordbooks/:id/words
@@ -122,9 +154,156 @@ router.post('/:id/words', authMiddleware, async (req, res) => {
   }
 });
 
+// --- 从预设词典标签导入创建新单词书 ---
+// @route   POST api/wordbooks/import
+// @desc    基于一个标签 (如 'CET4') 创建一个新的、预填充单词的单词书
+// @access  Private
+router.post('/import', authMiddleware, async (req, res) => {
+    const { dictionaryTag, name, description } = req.body; // 获取标签、新书名称、描述
+    const userId = req.user.id;
+
+    // 1. 验证输入
+    if (!dictionaryTag || !name) {
+        return res.status(400).json({ msg: '缺少 dictionaryTag 或 name 参数' });
+    }
+
+    // (可选) 验证 dictionaryTag 是否在预定义的标签列表内
+    const allowedTags = [
+        'CET4', 'CET6', 'GaoKao', 'KaoYan', 'IELTS', 'IELTS_Disorder', 
+        '4000EEW_Meaning', '4000EEW_Sentence', '2025KaoYan', '2026KaoYan', 'Special'
+    ];
+    if (!allowedTags.includes(dictionaryTag)) {
+        return res.status(400).json({ msg: `无效的词典标签: ${dictionaryTag}` });
+    }
+
+    try {
+        // 2. 根据标签查找所有对应的单词 ID
+        // 使用 lean() 提高性能，因为只需要 _id
+        const words = await Word.find({ tags: dictionaryTag }).select('_id').lean();
+        const wordIds = words.map(w => w._id); // 提取 ObjectId 数组
+
+        if (wordIds.length === 0) {
+            return res.status(404).json({ msg: `未找到标签为 "${dictionaryTag}" 的单词，无法创建单词书` });
+        }
+
+        // 3. (可选) 根据标签设置默认的 level 和 category
+        let level = dictionaryTag; // 简单地用标签作为级别
+        let category = '考试';    // 假设这些都是考试类，可以根据需要调整
+        if (dictionaryTag.includes('IELTS')) category = '留学';
+        // ... 其他映射规则 ...
+
+        // 4. 创建新的单词书实例
+        const newWordBook = new WordBook({
+            name,
+            description,
+            level: level,
+            category: category,
+            owner: userId,
+            words: wordIds, // 直接使用查找到的单词 ID 数组
+            isPublic: false, // 导入的单词书默认为用户私有
+        });
+
+        // 5. 保存单词书到数据库
+        const savedWordBook = await newWordBook.save();
+
+        // 6. 返回创建成功的单词书 (可以考虑是否填充单词信息)
+        // 不填充，让前端需要时再去获取详情
+        res.status(201).json(savedWordBook);
+
+    } catch (err) {
+        console.error(`从标签 "${dictionaryTag}" 导入单词书错误:`, err.message);
+        // 检查是否是唯一键冲突（例如用户尝试用同一个名字创建两次？）
+        // Mongoose 错误码 11000 通常表示唯一键冲突
+        if (err.code === 11000) {
+             return res.status(400).json({ msg: '创建单词书失败，可能名称已存在或存在唯一性问题' });
+        }
+        res.status(500).send('服务器错误');
+    }
+});
+
+// --- 删除单词书 ---
+// @route   DELETE api/wordbooks/:id
+// @desc    删除指定 ID 的单词书
+// @access  Private (需要验证所有权)
+router.delete('/:id', authMiddleware, async (req, res) => {
+    const wordbookId = req.params.id;
+    const userId = req.user.id;
+
+    // 1. 验证 ID 格式
+    if (!mongoose.Types.ObjectId.isValid(wordbookId)) {
+        return res.status(400).json({ msg: '无效的单词书 ID' });
+    }
+
+    try {
+        // 2. 查找并删除属于该用户的单词书
+        // 直接使用 deleteOne 并包含 owner 条件，确保用户只能删除自己的
+        const deleteResult = await WordBook.deleteOne({ _id: wordbookId, owner: userId });
+
+        // 3. 检查是否有文档被删除
+        if (deleteResult.deletedCount === 0) {
+            // 如果没有删除任何文档，说明单词书不存在或用户无权删除
+            return res.status(404).json({ msg: '单词书未找到或无权删除' });
+        }
+
+        // 4. （可选）删除关联的学习记录？
+        // 如果需要，可以在这里添加逻辑来删除与这个单词书相关的 LearningRecord
+        // await LearningRecord.deleteMany({ user: userId, wordbook: wordbookId });
+        // 这取决于你的业务逻辑，暂时我们只删除单词书本身。
+
+        res.json({ msg: '单词书已成功删除' }); // 返回成功消息
+
+    } catch (err) {
+        console.error(`删除单词书 ${wordbookId} 错误:`, err.message);
+        res.status(500).send('服务器错误');
+    }
+});
+
 // --- TODO: 后续添加更新、删除、删除单词的路由 ---
 // router.put('/:id', authMiddleware, async (req, res) => { /* 更新逻辑 */ });
 // router.delete('/:id', authMiddleware, async (req, res) => { /* 删除逻辑 */ });
 // router.delete('/:id/words/:wordId', authMiddleware, async (req, res) => { /* 删除单词逻辑 */ });
+// --- 从单词书中移除一个单词 ---
+// @route   DELETE api/wordbooks/:id/words/:wordId
+// @desc    从指定的单词书中移除指定的单词
+// @access  Private (需要验证单词书所有权)
+router.delete('/:id/words/:wordId', authMiddleware, async (req, res) => {
+    const { id: wordbookId, wordId: wordIdToRemove } = req.params; // 获取单词书ID和要移除的单词ID
+    const userId = req.user.id;
 
+    // 1. 验证 ID 格式
+    if (!mongoose.Types.ObjectId.isValid(wordbookId)) {
+        return res.status(400).json({ msg: '无效的单词书 ID' });
+    }
+    if (!mongoose.Types.ObjectId.isValid(wordIdToRemove)) {
+        return res.status(400).json({ msg: '无效的单词 ID' });
+    }
+
+    try {
+        // 2. 更新单词书，使用 $pull 操作符移除数组中的元素
+        const updateResult = await WordBook.updateOne(
+            { _id: wordbookId, owner: userId }, // 条件：匹配单词书 ID 和拥有者
+            {
+                $pull: { words: wordIdToRemove }, // 从 words 数组中移除指定的 wordIdToRemove
+                $set: { updatedAt: Date.now() }    // 更新时间戳
+            }
+        );
+
+        // 3. 检查更新结果
+        if (updateResult.matchedCount === 0) {
+             // 没有找到匹配的单词书（或用户无权访问）
+            return res.status(404).json({ msg: '单词书未找到或无权修改' });
+        }
+        if (updateResult.modifiedCount === 0) {
+             // 找到了单词书，但没有进行修改（说明该单词原本就不在书中）
+            // 这种情况可以返回成功，也可以返回特定提示，看业务需求
+            return res.status(200).json({ msg: '单词未在该单词书中找到，无需移除' });
+        }
+
+        res.json({ msg: '单词已成功从单词书中移除' });
+
+    } catch (err) {
+        console.error(`从单词书 ${wordbookId} 移除单词 ${wordIdToRemove} 错误:`, err.message);
+        res.status(500).send('服务器错误');
+    }
+});
 module.exports = router; // 确保导出了 router

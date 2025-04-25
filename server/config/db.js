@@ -6,9 +6,6 @@ const connectDB = async () => {
     await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      // Mongoose 6+ 默认就是 true, 但可以显式写上
-      // useCreateIndex: true, // Mongoose 6 中已移除
-      // useFindAndModify: false // Mongoose 6 中已移除
     });
     console.log('MongoDB Connected...');
   } catch (err) {

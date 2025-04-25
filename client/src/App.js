@@ -15,6 +15,7 @@ import HomePage from './pages/HomePage';
 import WordsPage from './pages/WordsPage';
 import WordbooksPage from './pages/WordbooksPage'; // <--- 引入 WordbooksPage
 import LearningPage from './pages/LearningPage';
+import WordbookDetailPage from './pages/WordbookDetailPage'; 
 
 // 引入私有路由组件 和 Auth Context
 import PrivateRoute from './components/PrivateRoute';
@@ -74,7 +75,7 @@ function App() {
           <Route element={<PrivateRoute />}>
             <Route path="/home" element={<HomePage />} />
             <Route path="/wordbooks" element={<WordbooksPage />} />
-            {/* V--- 添加学习页面的私有路由 ---V */}
+            <Route path="/wordbooks/:id" element={<WordbookDetailPage />} />
             <Route path="/learn/:wordbookId" element={<LearningPage />} />
           </Route>
 

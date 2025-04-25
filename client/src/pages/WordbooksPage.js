@@ -23,9 +23,31 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField'; // 用于对话框内的表单
 import Snackbar from '@mui/material/Snackbar'; // 引入 Snackbar
+import Radio from '@mui/material/Radio';
+import RadioGroup from '@mui/material/RadioGroup';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
 // import DeleteIcon from '@mui/icons-material/Delete';
 // import EditIcon from '@mui/icons-material/Edit';
-import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
+// import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'; // 确认图标已安装或用 emoji 代替
+
+// --- V 定义预设词典列表 (根据你的 seedWords.js 配置) --- V
+const presetDictionaries = [
+    { tag: 'CET4', name: '大学英语四级 T' },
+    { tag: 'CET6', name: '大学英语六级 T' },
+    { tag: 'GaoKao', name: '高考 3500' },
+    { tag: 'KaoYan', name: '考研大纲词汇 2024' },
+    { tag: 'IELTS', name: '雅思核心词汇 (顺序)' },
+    { tag: 'IELTS_Disorder', name: '雅思核心词汇 (乱序)' },
+    { tag: '4000EEW_Meaning', name: '4000 基本英语词汇 (含释义)' },
+    { tag: '4000EEW_Sentence', name: '4000 基本英语词汇 (含例句)' },
+    { tag: '2025KaoYan', name: '2025考研红宝书' },
+    { tag: '2026KaoYan', name: '2026红宝书' },
+    { tag: 'Special', name: '专项词汇' }
+];
 
 function WordbooksPage() {
     const [wordbooks, setWordbooks] = useState([]);
@@ -35,104 +57,128 @@ function WordbooksPage() {
     const navigate = useNavigate();
 
     // --- V 新增: 对话框和表单状态 --- V
-    const [openCreateDialog, setOpenCreateDialog] = useState(false); // 控制对话框打开/关闭
-    const [newWordbookData, setNewWordbookData] = useState({ name: '', description: '' }); // 新单词书表单数据
-    const [dialogLoading, setDialogLoading] = useState(false); // 对话框提交加载状态
-    const [dialogError, setDialogError] = useState('');     // 对话框内错误信息
+    const [openCreateDialog, setOpenCreateDialog] = useState(false);
+    const [newWordbookData, setNewWordbookData] = useState({ name: '', description: '' });
+    const [creationType, setCreationType] = useState('empty'); // 'empty' or 'import'
+    const [selectedDictionaryTag, setSelectedDictionaryTag] = useState(presetDictionaries.length > 0 ? presetDictionaries[0].tag : ''); // 默认选中第一个预设标签
+    const [dialogLoading, setDialogLoading] = useState(false);
+    const [dialogError, setDialogError] = useState('');
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const [snackbarSeverity, setSnackbarSeverity] = useState('success');
     // --- ^ 新增结束 ^ ---
-
+    const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false);
+    const [deletingBookId, setDeletingBookId] = useState(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
+    
     // --- 获取单词书列表函数 (不变) ---
-    const fetchWordbooks = useCallback(async () => {
-        // ... (函数体不变) ...
-         setLoading(true);
-         setError('');
-         try {
-             const data = await apiFetch('/api/wordbooks');
-             setWordbooks(data || []);
-         } catch (err) {
-             setError(`获取单词书列表失败: ${err.message}`);
-             setWordbooks([]);
-         } finally {
-             setLoading(false);
-         }
-    }, []);
-
-    // --- useEffect (不变) ---
-    useEffect(() => {
-        if (isAuthenticated) {
-            fetchWordbooks();
-        } else {
-             setError("请先登录以查看您的单词书。");
-             setLoading(false);
-        }
-    }, [isAuthenticated, fetchWordbooks]);
+    const fetchWordbooks = useCallback(async () => { /* ... */
+         setLoading(true); setError(''); try { const data = await apiFetch('/api/wordbooks'); setWordbooks(data || []); } catch (err) { setError(`获取单词书列表失败: ${err.message}`); setWordbooks([]); } finally { setLoading(false); }
+     }, []);
+    useEffect(() => { if (isAuthenticated) { fetchWordbooks(); } else { setError("请先登录以查看您的单词书。"); setLoading(false); } }, [isAuthenticated, fetchWordbooks]);
+    const showSnackbar = (message, severity = 'success') => { setSnackbarMessage(message); setSnackbarSeverity(severity); setSnackbarOpen(true); };
+    const handleSnackbarClose = (event, reason) => { if (reason === 'clickaway') { return; } setSnackbarOpen(false); };
 
 
-    // --- V 修改: 打开/关闭对话框的函数 --- V
     const handleOpenCreateDialog = () => {
-        setNewWordbookData({ name: '', description: '' }); // 重置表单
-        setDialogError(''); // 清除旧错误
+        setNewWordbookData({ name: '', description: '' });
+        setCreationType('empty'); // 默认创建空
+        setSelectedDictionaryTag(presetDictionaries.length > 0 ? presetDictionaries[0].tag : ''); // 重置选中标签
+        setDialogError('');
         setOpenCreateDialog(true);
     };
+    const handleCloseCreateDialog = () => { setOpenCreateDialog(false); };
+    const handleNewWordbookChange = (e) => { setNewWordbookData({ ...newWordbookData, [e.target.name]: e.target.value }); if (dialogError && e.target.name === 'name') { setDialogError(''); } };
 
-    const handleCloseCreateDialog = () => {
-        setOpenCreateDialog(false);
+    // --- V 新增: 处理创建类型和预设词典选择变化 --- V
+    const handleCreationTypeChange = (event) => {
+        setCreationType(event.target.value);
+        setDialogError(''); // 切换类型时清除错误
     };
-
-    // 处理对话框表单输入变化
-    const handleNewWordbookChange = (e) => {
-        setNewWordbookData({ ...newWordbookData, [e.target.name]: e.target.value });
-         if (dialogError && e.target.name === 'name') { // 如果错误是因为名字为空，用户输入时清除错误
-             setDialogError('');
-         }
+    const handleDictionaryTagChange = (event) => {
+        setSelectedDictionaryTag(event.target.value);
+        // (可选) 自动填充名称为选中的词典名称
+        // const selectedDict = presetDictionaries.find(d => d.tag === event.target.value);
+        // if (selectedDict) {
+        //    setNewWordbookData(prev => ({...prev, name: selectedDict.name}));
+        // }
     };
-
-     // 显示 Snackbar 提示 (复用之前的)
-     const showSnackbar = (message, severity = 'success') => {
-        setSnackbarMessage(message);
-        setSnackbarSeverity(severity);
-        setSnackbarOpen(true);
-    };
-    // 关闭 Snackbar (复用之前的)
-    const handleSnackbarClose = (event, reason) => {
-        if (reason === 'clickaway') { return; }
-        setSnackbarOpen(false);
-    };
-
-
+    
     // 处理创建单词书的表单提交
     const handleCreateSubmit = async () => {
         if (!newWordbookData.name.trim()) {
             setDialogError('单词书名称不能为空');
             return;
         }
+        if (creationType === 'import' && !selectedDictionaryTag) {
+             setDialogError('请选择要导入的预设词典');
+             return;
+         }
+
         setDialogLoading(true);
         setDialogError('');
 
         try {
-            const createdWordbook = await apiFetch('/api/wordbooks', {
-                method: 'POST',
-                body: JSON.stringify(newWordbookData)
-            });
-            handleCloseCreateDialog(); // 关闭对话框
-            fetchWordbooks(); // 重新获取列表以显示新单词书
-            showSnackbar(`单词书 "${createdWordbook.name}" 创建成功!`, 'success'); // 使用 Snackbar 提示
+            let createdWordbook;
+            if (creationType === 'import') {
+                // 调用导入 API
+                createdWordbook = await apiFetch('/api/wordbooks/import', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                         dictionaryTag: selectedDictionaryTag,
+                         name: newWordbookData.name,
+                         description: newWordbookData.description
+                    })
+                });
+                 showSnackbar(`从 "${presetDictionaries.find(d => d.tag === selectedDictionaryTag)?.name || selectedDictionaryTag}" 导入 "${createdWordbook.name}" 成功!`, 'success');
+            } else {
+                // 调用创建空单词书 API
+                createdWordbook = await apiFetch('/api/wordbooks', {
+                    method: 'POST',
+                    body: JSON.stringify(newWordbookData) // 只发送 name 和 description
+                });
+                 showSnackbar(`单词书 "${createdWordbook.name}" 创建成功!`, 'success');
+            }
+            handleCloseCreateDialog();
+            fetchWordbooks(); // 刷新列表
 
         } catch (err) {
-            console.error("创建单词书失败:", err);
-            setDialogError(`创建失败: ${err.message}`); // 在对话框内显示错误
-             // showSnackbar(`创建失败: ${err.message}`, 'error'); // 或者用 Snackbar
+            console.error("创建/导入单词书失败:", err);
+            setDialogError(`操作失败: ${err.message}`);
         } finally {
             setDialogLoading(false);
         }
     };
-    // --- ^ 修改/新增结束 ^ ---
 
+    // 打开删除确认对话框
+    const handleOpenDeleteConfirm = (id) => {
+        setDeletingBookId(id);
+        setOpenDeleteConfirm(true);
+    };
 
-    const handleDeleteWordbook = async (id) => { console.log(`TODO: 删除单词书 ${id}`); };
+    // 关闭删除确认对话框
+    const handleCloseDeleteConfirm = () => {
+        setOpenDeleteConfirm(false);
+        setDeletingBookId(null); // 清除 ID
+    };
+
+    // 处理确认删除
+    const handleConfirmDelete = async () => {
+        if (!deletingBookId) return;
+        setDeleteLoading(true); // 开始删除，设置 loading
+        try {
+            const response = await apiFetch(`/api/wordbooks/${deletingBookId}`, { method: 'DELETE' });
+            showSnackbar(response.msg || '单词书删除成功！', 'success');
+            fetchWordbooks(); // 删除成功后刷新列表
+            handleCloseDeleteConfirm(); // 关闭确认对话框
+        } catch (err) {
+            console.error(`删除单词书 ${deletingBookId} 失败:`, err);
+            showSnackbar(`删除失败: ${err.message}`, 'error');
+            // 可以选择不关闭对话框，让用户重试
+        } finally {
+            setDeleteLoading(false); // 结束删除 loading
+        }
+    };
     const handleStartLearning = (wordbookId, wordCount) => { /* ... (不变) ... */
         if (wordCount === 0) {
             showSnackbar("这个单词书里还没有单词，请先添加单词。", "warning");
@@ -153,92 +199,119 @@ function WordbooksPage() {
 
     return (
         <Container maxWidth="md">
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography component="h1" variant="h4">
-                    我的单词书
-                </Typography>
-                {/* --- V 修改: 点击按钮打开对话框 --- V */}
-                <Button variant="contained" onClick={handleOpenCreateDialog}>
-                    创建新单词书
-                </Button>
-                {/* --- ^ 修改结束 ^ --- */}
-            </Box>
+            {/* ... (标题和创建按钮 JSX， 点击改为 handleOpenCreateDialog ) ... */}
+             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}> <Typography component="h1" variant="h4"> 我的单词书 </Typography> <Button variant="contained" onClick={handleOpenCreateDialog}> 创建新单词书 </Button> </Box>
 
             {error && <Alert severity="error" sx={{ marginBottom: 2 }}>{error}</Alert>}
-
-            {/* ... (单词书列表渲染 JSX 基本不变) ... */}
-             {wordbooks.length === 0 && !loading && !error && (
-                  <Typography>你还没有创建任何单词书。</Typography>
-              )}
-             {wordbooks.length > 0 && (
+            {/* ... (单词书列表渲染 JSX 不变) ... */}
+            {wordbooks.length === 0 && !loading && !error && (<Typography>你还没有创建任何单词书。</Typography>)}
+            {wordbooks.length > 0 && (
                  <List>
-                     {wordbooks.map((book) => ( /* ... ListItem 内容不变 ... */
+                     {wordbooks.map((book) => (
                           <ListItem
-                              key={book._id}
-                              sx={{ borderBottom: '1px solid #eee', '&:hover': { backgroundColor: '#f5f5f5' } }}
-                          >
-                              <ListItemText /* ... */
-                                 primary={book.name}
-                                 secondary={
-                                     <>
-                                         {book.description || '暂无描述'}
-                                         <Typography variant="caption" display="block">
-                                             单词数: {book.words?.length || 0}
-                                             &nbsp;- 更新于: {new Date(book.updatedAt).toLocaleDateString()}
-                                         </Typography>
-                                     </>
-                                 }
+                                key={book._id}
+                                // V--- 添加以下两行 ---V
+                                component={RouterLink}
+                                to={`/wordbooks/${book._id}`}
+                                // --- ^ 添加结束 ^ ---
+                                sx={{ borderBottom: '1px solid #eee', '&:hover': { backgroundColor: '#f5f5f5', cursor: 'pointer' } }} // 添加 cursor
+                            >
+                              <ListItemText 
+                                primary={book.name}
+                                secondary={
+                                  <>
+                                    {book.description && `${book.description} • `}
+                                    {`${book.words?.length || 0} 个单词`}
+                                  </>
+                                }
                               />
                               <ListItemSecondaryAction>
                                  <IconButton edge="end" aria-label="start learning" onClick={() => handleStartLearning(book._id, book.words?.length || 0)} sx={{ mr: 1 }} title="开始学习">
                                      <span role="img" aria-label="start learning">▶️</span>
                                  </IconButton>
-                                 <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteWordbook(book._id)}>
+                                 {/* V--- 修改删除按钮 onClick ---V */}
+                                 <IconButton edge="end" aria-label="delete" onClick={() => handleOpenDeleteConfirm(book._id)}>
                                      <span role="img" aria-label="delete">🗑️</span>
                                  </IconButton>
+                                 {/* --- ^ 修改结束 ^ --- */}
                               </ListItemSecondaryAction>
                           </ListItem>
                      ))}
                  </List>
              )}
-
-
-            {/* --- V 新增: 创建单词书对话框 --- V */}
+            {/* --- V 修改: 创建对话框内容 --- V */}
             <Dialog open={openCreateDialog} onClose={handleCloseCreateDialog}>
                 <DialogTitle>创建新单词书</DialogTitle>
                 <DialogContent>
-                    <DialogContentText sx={{ mb: 2 }}>
-                        请输入新单词书的名称和可选的描述。
-                    </DialogContentText>
-                    {dialogError && <Alert severity="error" sx={{ mb: 2 }}>{dialogError}</Alert>}
+                    {/* <DialogContentText sx={{ mb: 2 }}>
+                        请选择创建方式并填写信息。
+                    </DialogContentText> */}
+                     {dialogError && <Alert severity="error" sx={{ mb: 2 }}>{dialogError}</Alert>}
+
+                    {/* 创建类型选择 */}
+                    <FormControl component="fieldset" sx={{ mb: 2 }}>
+                        {/* <FormLabel component="legend">创建方式</FormLabel> */}
+                        <RadioGroup
+                            row
+                            aria-label="creation-type"
+                            name="creation-type-radio-group"
+                            value={creationType}
+                            onChange={handleCreationTypeChange}
+                        >
+                            <FormControlLabel value="empty" control={<Radio />} label="创建空单词书" />
+                            <FormControlLabel value="import" control={<Radio />} label="从预设导入" />
+                        </RadioGroup>
+                    </FormControl>
+
+                    {/* 预设词典选择 (仅当类型为 'import' 时显示) */}
+                    {creationType === 'import' && (
+                         <FormControl fullWidth margin="dense" required error={!!dialogError && !selectedDictionaryTag}>
+                             <InputLabel id="preset-dictionary-select-label">选择预设词典</InputLabel>
+                             <Select
+                                 labelId="preset-dictionary-select-label"
+                                 id="preset-dictionary-select"
+                                 value={selectedDictionaryTag}
+                                 label="选择预设词典"
+                                 onChange={handleDictionaryTagChange}
+                             >
+                                 {presetDictionaries.map((dict) => (
+                                     <MenuItem key={dict.tag} value={dict.tag}>{dict.name}</MenuItem>
+                                 ))}
+                             </Select>
+                         </FormControl>
+                    )}
+
+
+                    {/* 单词书名称 (始终需要) */}
                     <TextField
-                        autoFocus // 对话框打开时自动聚焦
+                        autoFocus={creationType === 'empty'} // 创建空时自动聚焦名称
                         margin="dense"
                         id="name"
-                        name="name" // 必须和 state 中的 key 对应
+                        name="name"
                         label="单词书名称"
                         type="text"
                         fullWidth
                         variant="standard"
                         value={newWordbookData.name}
                         onChange={handleNewWordbookChange}
-                        required // 标记为必需
-                        error={!!dialogError && !newWordbookData.name.trim()} // 如果有错误且名字为空，显示错误状态
+                        required
+                        error={!!dialogError && !newWordbookData.name.trim()}
                     />
+                    {/* 描述 (可选) */}
                     <TextField
                         margin="dense"
                         id="description"
-                        name="description" // 必须和 state 中的 key 对应
+                        name="description"
                         label="描述 (可选)"
                         type="text"
                         fullWidth
                         variant="standard"
                         value={newWordbookData.description}
                         onChange={handleNewWordbookChange}
-                        multiline // 允许多行输入
+                        multiline
                         rows={2}
                     />
-                     {/* 可以添加 Level, Category, isPublic 等字段的输入 */}
+
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseCreateDialog} disabled={dialogLoading}>取消</Button>
@@ -247,14 +320,35 @@ function WordbooksPage() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            {/* --- ^ 新增结束 ^ --- */}
+            {/* --- ^ 修改结束 ^ --- */}
+            <Dialog
+                open={openDeleteConfirm}
+                onClose={handleCloseDeleteConfirm}
+                aria-labelledby="alert-dialog-title"
+                aria-describedby="alert-dialog-description"
+            >
+                <DialogTitle id="alert-dialog-title">
+                    {"确认删除单词书?"}
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText id="alert-dialog-description">
+                        删除单词书后，相关的学习记录可能也会丢失（取决于后端实现），确定要删除吗？
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseDeleteConfirm} disabled={deleteLoading}>取消</Button>
+                    <Button onClick={handleConfirmDelete} color="error" autoFocus disabled={deleteLoading}>
+                        {deleteLoading ? <CircularProgress size={24} color="inherit" /> : '确认删除'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
-             {/* Snackbar 用于全局提示 (复用之前的) */}
-            <Snackbar open={snackbarOpen} autoHideDuration={4000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-                <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
-                    {snackbarMessage}
-                </Alert>
-            </Snackbar>
+            {/* Snackbar (不变) */}
+             <Snackbar open={snackbarOpen} autoHideDuration={4000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                 <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+                     {snackbarMessage}
+                 </Alert>
+             </Snackbar>
 
         </Container>
     );
