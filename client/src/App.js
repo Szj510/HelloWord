@@ -17,6 +17,7 @@ import WordbooksPage from './pages/WordbooksPage'; // <--- 引入 WordbooksPage
 import LearningPage from './pages/LearningPage';
 import WordbookDetailPage from './pages/WordbookDetailPage'; 
 import StatisticsPage from './pages/StatisticsPage';
+import ReportsPage from './pages/ReportsPage';
 // 引入私有路由组件 和 Auth Context
 import PrivateRoute from './components/PrivateRoute';
 import { useAuth } from './context/AuthContext';
@@ -44,6 +45,7 @@ const Navbar = () => {
             {/* V--- 添加到“我的单词书”页面的链接 ---V */}
             <Button color="inherit" component={Link} to="/wordbooks">我的单词书</Button>
             <Button color="inherit" component={Link} to="/statistics">学习统计</Button>
+            <Button color="inherit" component={Link} to="/reports">学习报告</Button>
             <Button color="inherit" onClick={handleLogout}>退出登录</Button>
           </Box>
         ) : (
@@ -79,6 +81,7 @@ function App() {
             <Route path="/wordbooks/:id" element={<WordbookDetailPage />} />
             <Route path="/learn/:wordbookId" element={<LearningPage />} />
             <Route path="/statistics" element={<StatisticsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
           </Route>
 
         </Routes>

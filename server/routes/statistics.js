@@ -5,12 +5,13 @@ const LearningRecord = require('../models/LearningRecord');
 const User = require('../models/User');
 const Word = require('../models/Word');
 const mongoose = require('mongoose');
-const dayjs = require('dayjs'); // 使用 dayjs 处理日期，比原生 Date 更方便
-// 需要安装 dayjs: npm install dayjs 或 yarn add dayjs (在 server 目录)
-const utc = require('dayjs/plugin/utc'); // 处理 UTC 时间
-const timezone = require('dayjs/plugin/timezone'); // 处理时区
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+const weekOfYear = require('dayjs/plugin/weekOfYear'); // 用于计算周
 dayjs.extend(utc);
 dayjs.extend(timezone);
+dayjs.extend(weekOfYear);
 
 router.get('/overview', authMiddleware, async (req, res) => {
     const userId = req.user.id;
@@ -268,5 +269,148 @@ router.get('/weak_words', authMiddleware, async (req, res) => {
         res.status(500).send('服务器错误');
     }
 });
+
+// --- 获取学习报告数据 (简化版 - 周报) ---
+// @route   GET api/statistics/report
+// @desc    获取指定周期的学习报告摘要数据 (目前仅支持 weekly)
+// @access  Private
+router.get('/report', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    // 默认报告类型为 'weekly'
+    const reportType = req.query.type || 'weekly';
+
+    // --- 计算时间范围 (以上周为例) ---
+    // 可以根据需要调整为本周或过去7天
+    // dayjs().day(0) 是上周日， dayjs().day(6) 是本周六
+    // 我们计算上周一到上周日的数据
+    const lastWeekEnd = dayjs.utc().startOf('week').subtract(1, 'day'); // 上周日 23:59:59 UTC
+    const lastWeekStart = lastWeekEnd.subtract(6, 'day').startOf('day'); // 上周一 00:00:00 UTC
+
+    // 如果是 'current_week'
+    // const currentWeekStart = dayjs.utc().startOf('week'); // 本周一
+    // const currentWeekEnd = dayjs.utc().endOf('week');     // 本周日
+
+    const startDate = lastWeekStart.toDate();
+    const endDate = lastWeekEnd.endOf('day').toDate(); // 包含上周日整天
+
+    console.log(`Generating report for user ${userId} from ${startDate} to ${endDate}`); // 调试信息
+
+    try {
+        // --- 在指定时间段内聚合数据 ---
+        const weeklyAggregation = await LearningRecord.aggregate([
+            {
+                // 匹配用户和上周的学习记录
+                $match: {
+                    user: userObjectId,
+                    lastReviewedAt: { $gte: startDate, $lte: endDate }
+                }
+            },
+            {
+                // 分组统计
+                $group: {
+                    _id: null, // 聚合所有匹配的记录
+                    totalReviews: { $sum: 1 }, // 总复习次数
+                    totalCorrect: { $sum: '$totalCorrect' }, // 累加上周内每次记录的总正确数 (注意: 这不是区间内的正确数)
+                    totalIncorrect: { $sum: '$totalIncorrect' },// 累加上周内每次记录的总错误数 (同上)
+                    // 要计算区间内的正确/错误数，需要在 LearningRecord 的 history 中记录或修改 recordInteraction
+                    // 简化：我们计算区间内的总交互次数
+                    distinctWordsReviewed: { $addToSet: '$word' } // 添加到集合以统计不同单词
+                }
+            },
+            {
+                 $project: {
+                     _id: 0,
+                     totalReviews: 1,
+                     // 简化计算周正确率：暂时使用总次数计算（不精确）
+                     // weeklyAccuracy: {
+                     //     $cond: [
+                     //        { $gt: [ { $add: ['$totalCorrect', '$totalIncorrect'] }, 0 ] },
+                     //        { $round: [ { $multiply: [ { $divide: ['$totalCorrect', { $add: ['$totalCorrect', '$totalIncorrect'] }] }, 100 ] } ] },
+                     //        0
+                     //     ]
+                     // },
+                     // 更简单的方式是只报告复习次数和复习的不同单词数
+                     wordsReviewedCount: { $size: '$distinctWordsReviewed' }
+                 }
+             }
+        ]);
+
+        // --- 获取期间内新掌握的单词 ---
+        // 查找状态变为 Mastered 且 updatedAt 在上周内的记录
+        const masteredRecordsInPeriod = await LearningRecord.find({
+             user: userObjectId,
+             status: 'Mastered',
+             updatedAt: { $gte: startDate, $lte: endDate } // 状态更新时间在上周
+         }).countDocuments(); // 只获取数量
+
+        // --- 获取总体统计数据 (复用之前的逻辑或调用) ---
+        // 为了简单，我们只传递一些基本信息
+        // const overviewData = await fetchOverviewData(userId); // 假设有这样一个函数
+
+        // --- 获取薄弱词 (复用之前的逻辑或调用) ---
+        // 简化：直接获取总的薄弱词列表，不在报告中重新计算
+        const weakWordsData = await LearningRecord.aggregate([
+             // ... (复制 /api/statistics/weak_words 的聚合管道) ...
+             { $match: { user: userObjectId } },
+             { $project: { word: 1, totalAttempts: { $add: ['$totalCorrect', '$totalIncorrect'] }, errorRate: { $cond: [ { $gt: [{ $add: ['$totalCorrect', '$totalIncorrect'] }, 0] }, { $divide: ['$totalIncorrect', { $add: ['$totalCorrect', '$totalIncorrect'] }] }, 0 ] } } },
+             { $match: { totalAttempts: { $gte: 3 }, errorRate: { $gt: 0.4 } } },
+             { $sort: { errorRate: -1 } },
+             { $limit: 5 }, // 报告中少显示几个
+             { $lookup: { from: 'words', localField: 'word', foreignField: '_id', as: 'wordDetails' } },
+             { $unwind: { path: "$wordDetails", preserveNullAndEmptyArrays: true } },
+             { $project: { _id: 0, spelling: '$wordDetails.spelling', meaning: '$wordDetails.meaning', errorRate: 1 } }
+         ]);
+
+
+        // --- 构造报告数据 ---
+        const reportData = {
+            periodType: reportType,
+            startDate: startDate.toISOString().split('T')[0], // YYYY-MM-DD
+            endDate: endDate.toISOString().split('T')[0],   // YYYY-MM-DD
+            summary: weeklyAggregation.length > 0 ? weeklyAggregation[0] : { totalReviews: 0, wordsReviewedCount: 0 },
+            masteredInPeriod: masteredRecordsInPeriod,
+            topWeakWords: weakWordsData,
+             // TODO: 添加个性化建议 (基于规则)
+             suggestions: generateSuggestions(weeklyAggregation[0], masteredRecordsInPeriod, weakWordsData) // 需要实现 generateSuggestions
+        };
+
+        res.json(reportData);
+
+    } catch (err) {
+        console.error(`生成 ${reportType} 报告错误:`, err.message);
+        res.status(500).send('服务器错误');
+    }
+});
+
+// 简单的建议生成函数 (示例)
+function generateSuggestions(summary, masteredCount, weakWords) {
+    const suggestions = [];
+    const reviewCount = summary?.totalReviews || 0;
+    const reviewedWords = summary?.wordsReviewedCount || 0;
+
+    if (reviewCount < 50 && reviewedWords < 10) { // 假设每周目标是复习 50 次或 10 个不同单词
+        suggestions.push("学习有点少哦，尝试每天坚持复习一会吧！");
+    } else if (reviewCount > 300) {
+        suggestions.push("你非常努力！继续保持，注意劳逸结合。");
+    }
+
+    if (masteredCount > 10) {
+        suggestions.push(`上周新掌握了 ${masteredCount} 个单词，真棒！`);
+    }
+
+    if (weakWords && weakWords.length > 0) {
+        suggestions.push(`注意到你在 ${weakWords.map(w => `"${w.spelling}"`).slice(0, 2).join(', ')} 等单词上遇到了困难，可以针对性地多复习一下。`);
+    } else if (reviewCount > 0) {
+         suggestions.push("上周没有发现明显的薄弱单词，继续加油！");
+     }
+
+    if (suggestions.length === 0) {
+        suggestions.push("继续努力，保持学习节奏！");
+    }
+
+    return suggestions;
+}
+
 // --- (其他路由和 module.exports) ---
 module.exports = router;
