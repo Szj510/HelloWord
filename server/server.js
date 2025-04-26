@@ -8,6 +8,7 @@ const userRoutes = require('./routes/users'); // <--- 引入用户路由
 const wordbookRoutes = require('./routes/wordbooks');
 const wordRoutes = require('./routes/words');
 const learningRoutes = require('./routes/learning');
+const statisticsRoutes = require('./routes/statistics');
 
 // 加载环境变量
 dotenv.config();
@@ -31,6 +32,7 @@ app.use('/api/wordbooks', wordbookRoutes);
 app.use('/api/words', wordRoutes);
 app.use('/api/learning', learningRoutes);
 app.use('/api', require('./routes/api')); // 保留之前的 /api/hello 路由
+app.use('/api/statistics', statisticsRoutes);
 
 // 启动服务器
 const PORT = process.env.PORT || 5001; // 使用 .env 或默认 5001
