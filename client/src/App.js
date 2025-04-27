@@ -18,6 +18,9 @@ import LearningPage from './pages/LearningPage';
 import WordbookDetailPage from './pages/WordbookDetailPage'; 
 import StatisticsPage from './pages/StatisticsPage';
 import ReportsPage from './pages/ReportsPage';
+import VerificationSuccessPage from './pages/VerificationSuccessPage';
+import VerificationFailedPage from './pages/VerificationFailedPage';
+import VerifyEmailPage from './pages/VerifyEmailPage'; // <--- 导入新的验证邮箱页面
 // 引入私有路由组件 和 Auth Context
 import PrivateRoute from './components/PrivateRoute';
 import { useAuth } from './context/AuthContext';
@@ -73,6 +76,9 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/words" element={<WordsPage />} />
+          <Route path="/verification-success" element={<VerificationSuccessPage />} />
+          <Route path="/verification-failed" element={<VerificationFailedPage />} />
+          <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
 
           {/* 私有/受保护路由 */}
           <Route element={<PrivateRoute />}>

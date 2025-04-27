@@ -56,10 +56,11 @@ function RegisterPage() {
       }
 
       // 注册成功
-      console.log('注册成功:', data); // data 中应该包含 token
-      // 提示用户注册成功，并跳转到登录页面
-      alert('注册成功！请登录。'); // 简单的提示，可以替换为更友好的 UI 反馈
-      navigate('/login'); // 跳转到登录页
+      console.log('注册请求成功:', data); // data 中应该包含 { msg: '...' }
+      // 显示成功消息给用户 (可以使用 alert 或 Snackbar)
+      alert(data.msg || '注册成功！请检查您的邮箱以完成验证。');
+      // 跳转到登录页面，让用户验证后可以登录
+      navigate('/login');
 
     } catch (err) {
       console.error('注册请求失败:', err);

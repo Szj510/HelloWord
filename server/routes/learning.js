@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const authMiddleware = require('../middleware/auth'); // 认证中间件
-const LearningRecord = require('../models/LearningRecord'); // 学习记录模型
-const mongoose = require('mongoose'); // 用于验证 ObjectId
+const authMiddleware = require('../middleware/auth');
+const LearningRecord = require('../models/LearningRecord');
+const mongoose = require('mongoose');
+const dayjs = require('dayjs'); 
+const utc = require('dayjs/plugin/utc');
+dayjs.extend(utc);
 
 // @route   POST api/learning/record
 // @desc    记录用户对单词的学习交互 (认识/不认识)
@@ -34,6 +37,29 @@ router.post('/record', authMiddleware, async (req, res) => {
   }
 });
 
-// TODO: 后续可以添加获取待复习单词列表的路由 GET /api/learning/review
+// --- 获取待复习单词数量 ---
+// @route   GET api/learning/due
+// @desc    获取当前用户需要复习的单词数量
+// @access  Private
+router.get('/due', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const now = dayjs.utc().toDate(); // 获取当前 UTC 时间
+
+    try {
+        // 查询 nextReviewAt 小于等于当前时间，且状态不是 Mastered 的记录数量
+        const dueCount = await LearningRecord.countDocuments({
+            user: userObjectId,
+            status: { $ne: 'Mastered' }, // 排除已掌握的
+            nextReviewAt: { $lte: now } // 下次复习时间已到或已过
+        });
+
+        res.json({ dueReviewCount: dueCount });
+
+    } catch (err) {
+        console.error('获取待复习单词数量错误:', err.message);
+        res.status(500).send('服务器错误');
+    }
+});
 
 module.exports = router;
