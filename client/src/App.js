@@ -21,6 +21,7 @@ import ReportsPage from './pages/ReportsPage';
 import VerificationSuccessPage from './pages/VerificationSuccessPage';
 import VerificationFailedPage from './pages/VerificationFailedPage';
 import VerifyEmailPage from './pages/VerifyEmailPage'; // <--- 导入新的验证邮箱页面
+import PlanSettingsPage from './pages/PlanSettingsPage';
 // 引入私有路由组件 和 Auth Context
 import PrivateRoute from './components/PrivateRoute';
 import { useAuth } from './context/AuthContext';
@@ -49,6 +50,7 @@ const Navbar = () => {
             <Button color="inherit" component={Link} to="/wordbooks">我的单词书</Button>
             <Button color="inherit" component={Link} to="/statistics">学习统计</Button>
             <Button color="inherit" component={Link} to="/reports">学习报告</Button>
+            <Button color="inherit" component={Link} to="/plan-settings">学习计划</Button>
             <Button color="inherit" onClick={handleLogout}>退出登录</Button>
           </Box>
         ) : (
@@ -88,6 +90,7 @@ function App() {
             <Route path="/learn/:wordbookId" element={<LearningPage />} />
             <Route path="/statistics" element={<StatisticsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/plan-settings" element={<PlanSettingsPage />} />
           </Route>
 
         </Routes>

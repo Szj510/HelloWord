@@ -306,4 +306,85 @@ router.delete('/:id/words/:wordId', authMiddleware, async (req, res) => {
         res.status(500).send('服务器错误');
     }
 });
+
+// --- 获取单个单词书的统计信息 (用于计划计算) ---
+// @route   GET api/wordbooks/:id/stats
+// @desc    获取指定单词书的总词数及用户学习统计
+// @access  Private (需要验证所有权)
+router.get('/:id/stats', authMiddleware, async (req, res) => {
+    const wordbookId = req.params.id;
+    const userId = req.user.id;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    if (!mongoose.Types.ObjectId.isValid(wordbookId)) {
+        return res.status(400).json({ msg: '无效的单词书 ID' });
+    }
+
+    try {
+        // 1. 查找单词书并验证所有权，获取单词 ID 列表
+        const wordbook = await WordBook.findOne({ _id: wordbookId, owner: userId })
+                                      .select('words') // 只需要 words 数组
+                                      .lean();
+
+        if (!wordbook) { return res.status(404).json({ msg: '单词书未找到或无权访问' }); }
+
+        const wordIds = wordbook.words || [];
+        const totalWords = wordIds.length;
+
+        if (totalWords === 0) {
+             // 如果单词书为空，直接返回统计信息
+             return res.json({
+                 wordbookId: wordbookId,
+                 totalWords: 0,
+                 learnedWordsCount: 0,
+                 masteredWordsCount: 0,
+                 remainingNewWords: 0
+             });
+         }
+
+
+        // 2. 统计用户对这些单词的学习记录
+        const userRecordsStats = await LearningRecord.aggregate([
+            {
+                // 匹配当前用户以及该单词书中的单词
+                $match: {
+                    user: userObjectId,
+                    word: { $in: wordIds } // $in 操作符匹配数组中的任何值
+                }
+            },
+            {
+                // 按状态分组计数
+                $group: {
+                    _id: '$status', // 按 status 字段分组 ('Learning', 'Reviewing', 'Mastered')
+                    count: { $sum: 1 } // 计算每个状态的数量
+                }
+            }
+        ]);
+
+        // 3. 整理统计结果
+        let learnedWordsCount = 0; // 有记录就算学过
+        let masteredWordsCount = 0;
+        userRecordsStats.forEach(stat => {
+            learnedWordsCount += stat.count; // 所有状态的都算学过
+            if (stat._id === 'Mastered') {
+                masteredWordsCount = stat.count;
+            }
+        });
+
+        const remainingNewWords = totalWords - learnedWordsCount;
+
+        res.json({
+            wordbookId: wordbookId,
+            totalWords: totalWords,           // 总词数
+            learnedWordsCount: learnedWordsCount,     // 已学（有记录）单词数
+            masteredWordsCount: masteredWordsCount,    // 已掌握单词数
+            remainingNewWords: remainingNewWords < 0 ? 0 : remainingNewWords // 剩余未学新词数 (防止负数)
+        });
+
+    } catch (err) {
+        console.error(`获取单词书 ${wordbookId} 统计错误:`, err.message);
+        res.status(500).send('服务器错误');
+    }
+});
+
 module.exports = router; // 确保导出了 router

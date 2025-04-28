@@ -184,7 +184,9 @@ function WordbooksPage() {
             showSnackbar("这个单词书里还没有单词，请先添加单词。", "warning");
             return;
         }
-        navigate(`/learn/${wordbookId}`);
+        const defaultNewLimit = 10;
+        const defaultReviewLimit = 30;
+        navigate(`/learn/${wordbookId}?newLimit=${defaultNewLimit}&reviewLimit=${defaultReviewLimit}`);
     };
 
 

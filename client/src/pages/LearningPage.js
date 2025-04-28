@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import apiFetch from '../utils/api';
 
 // MUI 组件
@@ -33,43 +33,95 @@ const getStatusColor = (status) => {
 function LearningPage() {
   const { wordbookId } = useParams();
   const navigate = useNavigate();
-  const [wordbookName, setWordbookName] = useState('');
+  const location = useLocation();
+    
+  const queryParams = new URLSearchParams(location.search);
+  const initialMode = queryParams.get('mode') || 'flashcard'; // 默认为 flashcard
+  const initialNewLimit = queryParams.get('newLimit');       // 可以从 URL 传递限制
+  const initialReviewLimit = queryParams.get('reviewLimit');
+    
+    //const [wordbookName, setWordbookName] = useState('');
+  const [sessionTitle, setSessionTitle] = useState('学习会话'); // 通用标题
   const [wordsToLearn, setWordsToLearn] = useState([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false); // 用于记录交互 API 调用
   const [isRevealed, setIsRevealed] = useState(false);
-
-  // --- V 新增: 学习模式相关状态 --- V
-  const [learningMode, setLearningMode] = useState('flashcard'); // 'flashcard' or 'spelling'
+  const [learningMode, setLearningMode] = useState(initialMode); 
   const [spellingInput, setSpellingInput] = useState(''); // 拼写模式下的用户输入
   const [feedback, setFeedback] = useState({ show: false, correct: false, message: '' }); // 拼写反馈
-  // --- ^ 新增结束 ^ ---
-
   const spellingInputRef = useRef(null); // 用于聚焦输入框
-  const fetchWordbookData = useCallback(async () => {
-        setLoading(true); setError('');
+  
+  // --- V 修改: 获取学习会话数据 --- V
+    const fetchLearningSession = useCallback(async () => {
+        setLoading(true);
+        setError('');
+        setWordsToLearn([]); // 清空旧数据
         try {
-            const data = await apiFetch(`/api/wordbooks/${wordbookId}`);
-            if (data && data.words && Array.isArray(data.words)) {
-                setWordbookName(data.name || '未知单词书');
-                // TODO: 后续应根据复习算法获取和排序单词，这里暂时用单词书顺序
-                setWordsToLearn(data.words);
-                if (data.words.length === 0) { setError("这个单词书是空的，无法开始学习。"); }
-                else {
-                    setCurrentWordIndex(0);
-                    // V--- 重置拼写相关状态 ---V
-                    setSpellingInput('');
-                    // 初始不聚焦，让用户先看提示
-                    // setTimeout(() => spellingInputRef.current?.focus(), 100);
-                    // --- ^ 重置结束 ^ ---
-                }
-            } else { throw new Error("无效的单词书数据格式"); }
-        } catch (err) { setError(`加载学习会话失败: ${err.message}`); setWordsToLearn([]); }
-        finally { setLoading(false); }
-    }, [wordbookId]);
-    useEffect(() => { fetchWordbookData(); }, [fetchWordbookData]);
+            // 构建 API 请求 URL，包含 wordbookId 和限制参数
+            const params = new URLSearchParams({ wordbookId });
+            if (initialNewLimit) params.append('newLimit', initialNewLimit);
+            if (initialReviewLimit) params.append('reviewLimit', initialReviewLimit);
+
+            console.log(`Fetching learning session for wordbook: ${wordbookId} with params: ${params.toString()}`);
+            const data = await apiFetch(`/api/learning/session?${params.toString()}`);
+
+            if (data && data.sessionWords && Array.isArray(data.sessionWords)) {
+                 if (data.sessionWords.length === 0) {
+                     // setError("太棒了！当前没有需要学习或复习的单词。"); // 或者给个提示
+                     setSessionTitle("任务完成"); // 更新标题
+                 } else {
+                     setWordsToLearn(data.sessionWords);
+                     setCurrentWordIndex(0);
+                     setIsRevealed(false);
+                     setFeedback({ show: false, correct: false, message: '' });
+                     setSpellingInput('');
+                     // 设置一个更具体的标题，如果需要可以单独获取单词书名称
+                     // setSessionTitle(`学习: ${wordbookName}`);
+                     setSessionTitle(`学习会话`); // 通用标题
+                      // 聚焦 (如果模式是 spelling)
+                     if (learningMode === 'spelling') {
+                          setTimeout(() => spellingInputRef.current?.focus(), 0);
+                      }
+                 }
+            } else {
+                throw new Error("无效的会话数据格式");
+            }
+        } catch (err) {
+            console.error('获取学习会话失败:', err);
+            setError(`加载学习会话失败: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    }, [wordbookId, initialNewLimit, initialReviewLimit, learningMode]); // learningMode 加入依赖，聚焦用
+
+    useEffect(() => {
+        fetchLearningSession();
+    }, [fetchLearningSession]); // 依赖 fetchLearningSession
+    // --- ^ 修改结束 ^ ---
+//   const fetchWordbookData = useCallback(async () => {
+//         setLoading(true); setError('');
+//         try {
+//             const data = await apiFetch(`/api/wordbooks/${wordbookId}`);
+//             if (data && data.words && Array.isArray(data.words)) {
+//                 setWordbookName(data.name || '未知单词书');
+//                 // TODO: 后续应根据复习算法获取和排序单词，这里暂时用单词书顺序
+//                 setWordsToLearn(data.words);
+//                 if (data.words.length === 0) { setError("这个单词书是空的，无法开始学习。"); }
+//                 else {
+//                     setCurrentWordIndex(0);
+//                     // V--- 重置拼写相关状态 ---V
+//                     setSpellingInput('');
+//                     // 初始不聚焦，让用户先看提示
+//                     // setTimeout(() => spellingInputRef.current?.focus(), 100);
+//                     // --- ^ 重置结束 ^ ---
+//                 }
+//             } else { throw new Error("无效的单词书数据格式"); }
+//         } catch (err) { setError(`加载学习会话失败: ${err.message}`); setWordsToLearn([]); }
+//         finally { setLoading(false); }
+//     }, [wordbookId]);
+//     useEffect(() => { fetchWordbookData(); }, [fetchWordbookData]);
   // 获取当前显示的单词
   const currentWord = wordsToLearn.length > 0 ? wordsToLearn[currentWordIndex] : null;
 
@@ -183,37 +235,28 @@ function LearningPage() {
         finally { setIsSubmitting(false); }
     };
   
-  // ... (Loading 和 Error 状态的 JSX 不变) ...
-  if (loading) { /* ... */
-      return (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-              <CircularProgress />
-          </Box>
-      );
-  }
-  if (error && wordsToLearn.length === 0) { // 只有在没有单词可显示时才显示错误并阻止渲染卡片
-      return (
-           <Container maxWidth="sm">
-              <Alert severity="error" sx={{ mt: 4 }}>
-                  {error}
-                  <Button onClick={() => navigate('/wordbooks')} sx={{ ml: 2 }}>返回单词书列表</Button>
-               </Alert>
-           </Container>
-       );
-  }
-   if (!currentWord && !loading) { /* ... */ // (例如单词书为空，已在 fetch 中设置 error)
-        return (
-             <Container maxWidth="sm">
-                 {/* Error Alert 应该已经显示了 */}
-             </Container>
-        );
+  if (loading) {
+        return ( <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><CircularProgress /></Box> );
     }
-
+     // 如果有错误，显示错误信息
+     if (error) {
+         return ( <Container maxWidth="sm"><Alert severity="error" sx={{ mt: 4 }}>{error}<Button onClick={() => navigate('/wordbooks')} sx={{ ml: 2 }}>返回列表</Button></Alert></Container> );
+     }
+     // 如果加载完毕、没有错误，但没有单词（例如已完成或单词书为空）
+     if (!currentWord && !loading && !error) {
+         return (
+             <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 8 }}>
+                 <Typography variant="h5" gutterBottom>{sessionTitle}</Typography>
+                 <Typography>当前没有需要学习或复习的单词了！</Typography>
+                 <Button variant="contained" onClick={() => navigate('/wordbooks')} sx={{ mt: 3 }}>返回我的单词书</Button>
+             </Container>
+         );
+     }
 
   return (
         <Container maxWidth="sm">
             <Typography variant="h5" gutterBottom align="center" sx={{ mt: 2 }}>
-                学习: {wordbookName} ({currentWordIndex + 1} / {wordsToLearn.length})
+                {sessionTitle} ({currentWordIndex + 1} / {wordsToLearn.length})
             </Typography>
 
             {/* --- V 新增: 模式切换按钮 --- V */}

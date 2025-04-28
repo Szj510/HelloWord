@@ -36,15 +36,14 @@ const StatCard = ({ title, value, unit = '', icon = null }) => (
 function HomePage() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
-
-    // --- V 新增状态 --- V
     const [overviewStats, setOverviewStats] = useState(null);
     const [dueReviewCount, setDueReviewCount] = useState(0);
     const [loadingStats, setLoadingStats] = useState(true);
     const [loadingDue, setLoadingDue] = useState(true);
     const [errorStats, setErrorStats] = useState('');
     const [errorDue, setErrorDue] = useState('');
-    // --- ^ 新增结束 ^ ---
+    const [currentPlan, setCurrentPlan] = useState(null);
+    const [loadingPlan, setLoadingPlan] = useState(true); 
 
     // 获取概览统计
     useEffect(() => {
@@ -74,7 +73,22 @@ function HomePage() {
         fetchDue();
     }, []); // 加载一次
 
-
+    useEffect(() => {
+         const fetchCurrentPlan = async () => {
+             setLoadingPlan(true);
+             try {
+                 const data = await apiFetch('/api/plans/current');
+                 setCurrentPlan(data.plan); // data.plan 可能是 null 或 plan 对象
+             } catch (err) {
+                 console.error("获取当前计划失败:", err);
+                 // 这里可以选择不设置全局错误，因为主页其他部分可能正常
+             } finally {
+                 setLoadingPlan(false);
+             }
+         };
+         fetchCurrentPlan();
+    }, []);
+    
     const handleLogout = () => { /* ... (不变) ... */ };
 
     const handleStartReview = () => {
@@ -108,6 +122,17 @@ function HomePage() {
                                  今日任务
                                  {/* <AssignmentIcon sx={{ verticalAlign: 'bottom', ml: 1 }} /> */}
                             </Typography>
+                            {loadingPlan ? <CircularProgress size={20} sx={{mr: 1}} /> : currentPlan && currentPlan.isActive ? (
+                                   <Alert severity="info" sx={{mb: 2}} icon={false}>
+                                        当前计划: 每日新学 {currentPlan.dailyNewWordsTarget} 词, 复习 {currentPlan.dailyReviewWordsTarget} 词。
+                                        <Button component={RouterLink} to="/plan-settings" size="small" sx={{ml: 1}}>修改计划</Button>
+                                   </Alert>
+                                ) : (
+                                    <Alert severity="warning" sx={{mb: 2}} icon={false}>
+                                         当前无学习计划，将使用默认设置。
+                                         <Button component={RouterLink} to="/plan-settings" size="small" sx={{ml: 1}}>设置计划</Button>
+                                    </Alert>
+                                )}
                             {loadingDue ? <CircularProgress size={20} /> : errorDue ? <Alert severity="error" size="small">{errorDue}</Alert> : (
                                 <>
                                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>

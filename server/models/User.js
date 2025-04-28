@@ -22,10 +22,37 @@ const UserSchema = new Schema({
   },
   verificationTokenExpires: { // 令牌过期时间
     type: Date
+  },
+  learningPlan: {
+      isActive: { // 计划是否激活
+         type: Boolean,
+         default: false
+      },
+      targetWordbook: { // 计划针对的单词书 ID
+          type: Schema.Types.ObjectId,
+          ref: 'WordBook',
+          default: null // null 表示没有设置计划或计划不针对特定书(如果允许跨书学习)
+      },
+      dailyNewWordsTarget: { // 每日新词目标数量
+          type: Number,
+          min: 0,
+          default: 15 // 设置一个默认值
+      },
+      dailyReviewWordsTarget: { // 每日复习目标数量 (可以理解为 session 中 review 词的上限)
+          type: Number,
+          min: 0,
+          default: 40 // 设置一个默认值
+      },
+      // planStartDate: { // 计划开始日期 (可选)
+      //    type: Date
+      // },
+      planEndDate: { // 计划结束日期 (可选，用于有明确截止日期的计划)
+         type: Date
+      },
+      lastUpdated: { // 计划最后更新时间
+          type: Date
+      }
   }
-  // --- ^ 新增结束 ^ ---
-  // learningGoal: { type: String, default: null },
-  // dailyTarget: { type: Number, default: 20 }
 });
 
 module.exports = mongoose.model('User', UserSchema);
