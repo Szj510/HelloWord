@@ -18,6 +18,15 @@ import Snackbar from '@mui/material/Snackbar';
 import FormHelperText from '@mui/material/FormHelperText';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Fade from '@mui/material/Fade';
+import Chip from '@mui/material/Chip';
+// Icons
+import SettingsIcon from '@mui/icons-material/Settings';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import SpeedIcon from '@mui/icons-material/Speed';
+import TimerIcon from '@mui/icons-material/Timer';
 
 dayjs.extend(isSameOrAfter);
 
@@ -239,28 +248,47 @@ function PlanSettingsPage() {
           }
     };
 
-    if (loading) { 
+    if (loading) {
         return (
-            <Container maxWidth="md" sx={{ mt: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <CircularProgress size={60} />
-                <Typography variant="h6" sx={{ mt: 2 }}>
+            <Container maxWidth="md" sx={{ mt: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }} className="animate-fade-in">
+                <div className="spinner" style={{ width: 60, height: 60 }} />
+                <Typography variant="h6" sx={{ mt: 2, fontWeight: 'medium', color: 'text.secondary' }}>
                     正在加载学习计划...
                 </Typography>
             </Container>
         );
     }
-    
-    if (error && !plan) { 
+
+    if (error && !plan) {
         return (
-            <Container maxWidth="md">
-                <Alert severity="error" sx={{ mt: 4 }}>
-                    <Typography variant="h6">加载失败</Typography>
+            <Container maxWidth="md" className="animate-fade-in">
+                <Alert
+                    severity="error"
+                    sx={{
+                        mt: 4,
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 15px rgba(211, 47, 47, 0.15)'
+                    }}
+                >
+                    <Typography variant="h6" sx={{ mb: 1, fontWeight: 'medium' }}>加载失败</Typography>
                     <Typography>{error}</Typography>
                 </Alert>
-                <Button 
-                    variant="contained" 
-                    color="primary" 
-                    sx={{ mt: 2 }}
+                <Button
+                    variant="contained"
+                    sx={{
+                        mt: 2,
+                        borderRadius: '50px',
+                        py: 1,
+                        px: 3,
+                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                        boxShadow: '0 8px 16px rgba(71, 118, 230, 0.3)',
+                        fontWeight: 'bold',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            boxShadow: '0 12px 20px rgba(71, 118, 230, 0.4)',
+                            transform: 'translateY(-3px)'
+                        },
+                    }}
                     onClick={fetchData}
                 >
                     重试
@@ -270,106 +298,354 @@ function PlanSettingsPage() {
     }
 
     return (
-        <Container maxWidth="md">
-            <Typography component="h1" variant="h4" gutterBottom sx={{ my: 2 }}>
-                我的学习计划
-            </Typography>
+        <Container maxWidth="md" className="animate-fade-in">
+            <Box sx={{ mt: 4, mb: 5 }}>
+                <Typography
+                    component="h1"
+                    variant="h4"
+                    sx={{
+                        fontWeight: 'bold',
+                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent'
+                    }}
+                >
+                    <SettingsIcon sx={{ mr: 1.5, fontSize: '2rem' }} />
+                    我的学习计划
+                </Typography>
+            </Box>
 
-            <Paper elevation={3} sx={{ p: 3 }}>
-                {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+            <Fade in={true} timeout={800}>
+                <Card
+                    elevation={0}
+                    className="card-neumorphic"
+                    sx={{
+                        borderRadius: '16px',
+                        position: 'relative',
+                        overflow: 'hidden'
+                    }}
+                >
+                    {/* 装饰条纹 */}
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '6px',
+                            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                            opacity: 0.7
+                        }}
+                    />
 
-                <Grid container spacing={3}>
-                    <Grid item xs={12} sm={6}>
-                         <FormControl fullWidth required error={!formData.targetWordbookId && isEditing}>
-                            <InputLabel id="target-wordbook-label">目标单词书</InputLabel>
-                            <Select
-                                labelId="target-wordbook-label"
-                                name="targetWordbookId"
-                                value={formData.targetWordbookId}
-                                onChange={handleFormChange}
+                    <CardContent sx={{ p: 4 }}>
+                        {error && (
+                            <Alert
+                                severity="error"
+                                sx={{
+                                    mb: 3,
+                                    borderRadius: '12px',
+                                    boxShadow: '0 4px 15px rgba(211, 47, 47, 0.15)'
+                                }}
                             >
-                                {userWordbooks.map(book => (
-                                    <MenuItem key={book._id} value={book._id}>
-                                        {book.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                         </FormControl>
-                         {wordbookStats && !loadingStats && (
-                             <FormHelperText>
-                                总词数: {wordbookStats.totalWords},
-                                已学: {wordbookStats.learnedWordsCount},
-                                剩余新词: {wordbookStats.remainingNewWords}
-                            </FormHelperText>
-                         )}
-                         {loadingStats && <FormHelperText>正在加载单词书信息...</FormHelperText>}
-                    </Grid>
+                                {error}
+                            </Alert>
+                        )}
 
-                    <Grid item xs={12} sm={6}>
-                        <TextField
-                            label="计划结束日期 (可选)"
-                            type="date"
-                            name="planEndDate"
-                            value={formData.planEndDate}
-                            onChange={handleFormChange}
-                            InputLabelProps={{ shrink: true }}
-                            helperText={suggestion.endDate || "设定一个目标完成日期"}
-                            error={!!suggestion.endDate && suggestion.endDate.includes('无效')}
-                        />
-                    </Grid>
+                        {plan && plan.isActive && (
+                            <Box
+                                sx={{
+                                    mb: 4,
+                                    p: 2,
+                                    borderRadius: '12px',
+                                    background: 'rgba(76, 175, 80, 0.1)',
+                                    border: '1px solid rgba(76, 175, 80, 0.2)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    flexWrap: 'wrap',
+                                    gap: 2
+                                }}
+                            >
+                                <Box>
+                                    <Typography
+                                        variant="subtitle1"
+                                        sx={{
+                                            fontWeight: 'bold',
+                                            color: '#4CAF50',
+                                            display: 'flex',
+                                            alignItems: 'center'
+                                        }}
+                                    >
+                                        <SpeedIcon sx={{ mr: 1 }} />
+                                        当前学习计划已激活
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ mt: 0.5, color: 'text.secondary' }}>
+                                        每日新词: <strong>{plan.dailyNewWordsTarget}</strong> 个 |
+                                        每日复习: <strong>{plan.dailyReviewWordsTarget}</strong> 个
+                                        {plan.planEndDate && ` | 目标完成日期: ${dayjs(plan.planEndDate).format('YYYY-MM-DD')}`}
+                                    </Typography>
+                                </Box>
+                                <Chip
+                                    label="已激活"
+                                    color="success"
+                                    variant="outlined"
+                                    sx={{ fontWeight: 'medium' }}
+                                />
+                            </Box>
+                        )}
 
-                    <Grid item xs={12} sm={6}>
-                        <TextField
-                            label="每日新学单词数"
-                            type="number"
-                            name="dailyNewWordsTarget"
-                            value={formData.dailyNewWordsTarget}
-                            onChange={handleFormChange}
-                            required
-                            helperText={suggestion.newWords || "每天计划学习的新单词数量"}
-                            error={!!suggestion.newWords && suggestion.newWords.includes('无效')}
-                        />
-                    </Grid>
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} sm={6}>
+                                <FormControl
+                                    fullWidth
+                                    required
+                                    error={!formData.targetWordbookId && isEditing}
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '12px',
+                                        },
+                                        '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'rgba(71, 118, 230, 0.3)'
+                                        },
+                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'rgba(71, 118, 230, 0.5)'
+                                        }
+                                    }}
+                                >
+                                    <InputLabel id="target-wordbook-label">目标单词书</InputLabel>
+                                    <Select
+                                        labelId="target-wordbook-label"
+                                        name="targetWordbookId"
+                                        value={formData.targetWordbookId}
+                                        onChange={handleFormChange}
+                                    >
+                                        {userWordbooks.map(book => (
+                                            <MenuItem key={book._id} value={book._id}>
+                                                {book.name}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                    {wordbookStats && !loadingStats && (
+                                        <FormHelperText>
+                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                                                <Chip
+                                                    size="small"
+                                                    label={`总词数: ${wordbookStats.totalWords}`}
+                                                    sx={{
+                                                        borderRadius: '16px',
+                                                        background: 'rgba(71, 118, 230, 0.1)',
+                                                        color: '#4776E6',
+                                                        fontWeight: 'medium'
+                                                    }}
+                                                />
+                                                <Chip
+                                                    size="small"
+                                                    label={`已学: ${wordbookStats.learnedWordsCount}`}
+                                                    sx={{
+                                                        borderRadius: '16px',
+                                                        background: 'rgba(142, 84, 233, 0.1)',
+                                                        color: '#8E54E9',
+                                                        fontWeight: 'medium'
+                                                    }}
+                                                />
+                                                <Chip
+                                                    size="small"
+                                                    label={`剩余新词: ${wordbookStats.remainingNewWords}`}
+                                                    sx={{
+                                                        borderRadius: '16px',
+                                                        background: 'rgba(76, 175, 80, 0.1)',
+                                                        color: '#4CAF50',
+                                                        fontWeight: 'medium'
+                                                    }}
+                                                />
+                                            </Box>
+                                        </FormHelperText>
+                                    )}
+                                    {loadingStats && (
+                                        <FormHelperText>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                                                <div className="spinner" style={{ width: 16, height: 16, marginRight: 8 }} />
+                                                正在加载单词书信息...
+                                            </Box>
+                                        </FormHelperText>
+                                    )}
+                                </FormControl>
+                            </Grid>
 
-                     <Grid item xs={12} sm={6}>
-                         <TextField
-                            label="每日复习单词数 (上限)"
-                             type="number"
-                             name="dailyReviewWordsTarget"
-                             value={formData.dailyReviewWordsTarget}
-                             onChange={handleFormChange}
-                             required
-                             helperText={suggestion.reviewWords || "每天计划复习的单词数量上限"}
-                         />
-                     </Grid>
-                </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    label="计划结束日期 (可选)"
+                                    type="date"
+                                    name="planEndDate"
+                                    value={formData.planEndDate}
+                                    onChange={handleFormChange}
+                                    InputLabelProps={{ shrink: true }}
+                                    helperText={suggestion.endDate || "设定一个目标完成日期"}
+                                    error={!!suggestion.endDate && suggestion.endDate.includes('无效')}
+                                    fullWidth
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '12px',
+                                        },
+                                        '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'rgba(71, 118, 230, 0.3)'
+                                        },
+                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'rgba(71, 118, 230, 0.5)'
+                                        }
+                                    }}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <CalendarTodayIcon
+                                                sx={{
+                                                    color: '#4776E6',
+                                                    mr: 1
+                                                }}
+                                            />
+                                        ),
+                                    }}
+                                />
+                            </Grid>
 
-                <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                     {plan && plan.isActive && (
-                         <Button
-                             variant="outlined"
-                             color="secondary"
-                             onClick={handleDeactivatePlan}
-                             disabled={isSaving}
-                         >
-                             {isSaving ? <CircularProgress size={24} /> : '停用计划'}
-                         </Button>
-                      )}
-                     <Button
-                         variant="contained"
-                         color="primary"
-                         onClick={handleSavePlan}
-                         disabled={isSaving || userWordbooks.length === 0}
-                     >
-                         {isSaving ? <CircularProgress size={24} /> : (plan && plan.isActive ? '更新计划' : '保存并激活计划')}
-                     </Button>
-                </Box>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    label="每日新学单词数"
+                                    type="number"
+                                    name="dailyNewWordsTarget"
+                                    value={formData.dailyNewWordsTarget}
+                                    onChange={handleFormChange}
+                                    required
+                                    helperText={suggestion.newWords || "每天计划学习的新单词数量"}
+                                    error={!!suggestion.newWords && suggestion.newWords.includes('无效')}
+                                    fullWidth
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '12px',
+                                        },
+                                        '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'rgba(71, 118, 230, 0.3)'
+                                        },
+                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'rgba(71, 118, 230, 0.5)'
+                                        }
+                                    }}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <SpeedIcon
+                                                sx={{
+                                                    color: '#4776E6',
+                                                    mr: 1
+                                                }}
+                                            />
+                                        ),
+                                    }}
+                                />
+                            </Grid>
 
-            </Paper>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    label="每日复习单词数 (上限)"
+                                    type="number"
+                                    name="dailyReviewWordsTarget"
+                                    value={formData.dailyReviewWordsTarget}
+                                    onChange={handleFormChange}
+                                    required
+                                    helperText={suggestion.reviewWords || "每天计划复习的单词数量上限"}
+                                    fullWidth
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '12px',
+                                        },
+                                        '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'rgba(71, 118, 230, 0.3)'
+                                        },
+                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'rgba(71, 118, 230, 0.5)'
+                                        }
+                                    }}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <TimerIcon
+                                                sx={{
+                                                    color: '#4776E6',
+                                                    mr: 1
+                                                }}
+                                            />
+                                        ),
+                                    }}
+                                />
+                            </Grid>
+                        </Grid>
 
-            <Snackbar open={snackbarOpen} autoHideDuration={4000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-                 <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>{snackbarMessage}</Alert>
-             </Snackbar>
+                        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                            {plan && plan.isActive && (
+                                <Button
+                                    variant="outlined"
+                                    onClick={handleDeactivatePlan}
+                                    disabled={isSaving}
+                                    sx={{
+                                        borderRadius: '50px',
+                                        py: 1,
+                                        px: 3,
+                                        borderColor: 'rgba(211, 47, 47, 0.5)',
+                                        color: '#d32f2f',
+                                        '&:hover': {
+                                            borderColor: '#d32f2f',
+                                            backgroundColor: 'rgba(211, 47, 47, 0.08)'
+                                        }
+                                    }}
+                                >
+                                    {isSaving ? <CircularProgress size={24} /> : '停用计划'}
+                                </Button>
+                            )}
+                            <Button
+                                variant="contained"
+                                onClick={handleSavePlan}
+                                disabled={isSaving || userWordbooks.length === 0}
+                                sx={{
+                                    borderRadius: '50px',
+                                    py: 1,
+                                    px: 3,
+                                    background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                    boxShadow: '0 8px 16px rgba(71, 118, 230, 0.3)',
+                                    fontWeight: 'bold',
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                        boxShadow: '0 12px 20px rgba(71, 118, 230, 0.4)',
+                                        transform: 'translateY(-3px)'
+                                    },
+                                }}
+                            >
+                                {isSaving ? <CircularProgress size={24} /> : (plan && plan.isActive ? '更新计划' : '保存并激活计划')}
+                            </Button>
+                        </Box>
+                    </CardContent>
+                </Card>
+            </Fade>
+
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={4000}
+                onClose={handleSnackbarClose}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={handleSnackbarClose}
+                    severity={snackbarSeverity}
+                    sx={{
+                        width: '100%',
+                        borderRadius: '12px',
+                        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)'
+                    }}
+                >
+                    {snackbarMessage}
+                </Alert>
+            </Snackbar>
         </Container>
     );
 }

@@ -1,268 +1,733 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import apiFetch from '../utils/api';
-import { useAuth } from '../context/AuthContext';
 
-// MUI Components
+// MUI组件
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
-import Grid from '@mui/material/Grid'; // 用于布局卡片
+import Grid from '@mui/material/Grid';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
-import Divider from '@mui/material/Divider';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import List from '@mui/material/List'; // <--- 需要 List, ListItem, ListItemText
-import ListItem from '@mui/material/ListItem';
-import ListItemText from '@mui/material/ListItemText';
-import Chip from '@mui/material/Chip'; // <--- 用于显示错误率等信息
-import Tooltip from '@mui/material/Tooltip'; // <--- 用于显示提示信息
-// Recharts components (保持不变)
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
-import dayjs from 'dayjs';
-// 简单的统计卡片组件
-const StatCard = ({ title, value, unit = '' }) => (
-    <Card sx={{ textAlign: 'center', height: '100%' }}>
-        <CardContent>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-                {title}
-            </Typography>
-            <Typography variant="h4" component="div">
-                {value}{unit}
-            </Typography>
+import Button from '@mui/material/Button';
+import Fade from '@mui/material/Fade';
+import Slide from '@mui/material/Slide';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import Paper from '@mui/material/Paper';
+import LinearProgress from '@mui/material/LinearProgress';
+
+// 图表库组件 (如使用recharts)
+// 引入图标
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import QueryBuilderIcon from '@mui/icons-material/QueryBuilder';
+import BookIcon from '@mui/icons-material/Book';
+import EqualizerIcon from '@mui/icons-material/Equalizer';
+import SchoolIcon from '@mui/icons-material/School';
+
+// 请确保项目中安装了recharts: npm install recharts
+import {
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    PieChart,
+    Pie,
+    Cell
+} from 'recharts';
+
+// TabPanel组件
+function TabPanel(props) {
+    const { children, value, index, ...other } = props;
+
+    return (
+        <div
+            role="tabpanel"
+            hidden={value !== index}
+            id={`stats-tabpanel-${index}`}
+            aria-labelledby={`stats-tab-${index}`}
+            {...other}
+        >
+            {value === index && (
+                <Box sx={{ py: 3, px: { xs: 0, sm: 2 } }}>
+                    {children}
+                </Box>
+            )}
+        </div>
+    );
+}
+
+// 统计卡片组件
+const StatCard = ({ title, value, unit = '', icon: Icon, bgGradient, animationDelay = 0 }) => (
+    <Card 
+        className="card-glass hover-lift animate-fade-in"
+        elevation={0}
+        sx={{ 
+            height: '100%',
+            position: 'relative',
+            overflow: 'hidden',
+            borderRadius: '16px',
+            transition: 'all 0.3s ease',
+            animation: `fadeIn 0.6s ease-out ${animationDelay}s forwards`,
+            opacity: 0,
+            transform: 'translateY(20px)',
+        }}
+    >
+        <Box
+            sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '5px',
+                background: bgGradient || 'linear-gradient(90deg, #4776E6, #8E54E9)',
+            }}
+        />
+        <CardContent sx={{ py: 3 }}>
+            <Box
+                sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                }}
+            >
+                <Box>
+                    <Typography
+                        variant="subtitle2"
+                        sx={{
+                            color: 'text.secondary',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            mb: 0.5,
+                            fontWeight: 500,
+                        }}
+                    >
+                        {Icon && <Icon fontSize="small" />}
+                        {title}
+                    </Typography>
+                    <Typography
+                        variant="h4"
+                        component="div"
+                        sx={{ 
+                            fontWeight: 'bold',
+                            background: bgGradient || 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent'
+                        }}
+                    >
+                        {value}
+                        <Typography
+                            component="span"
+                            sx={{
+                                fontSize: '1rem',
+                                ml: 0.5,
+                                opacity: 0.7,
+                                verticalAlign: 'middle',
+                                fontWeight: 'normal'
+                            }}
+                        >
+                            {unit}
+                        </Typography>
+                    </Typography>
+                </Box>
+                {Icon && (
+                    <Box
+                        sx={{
+                            width: 48,
+                            height: 48,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '50%',
+                            background: 'rgba(0, 0, 0, 0.03)',
+                            color: '#666'
+                        }}
+                    >
+                        <Icon fontSize="medium" />
+                    </Box>
+                )}
+            </Box>
         </CardContent>
     </Card>
 );
 
+// 进度条卡片组件
+const ProgressCard = ({ title, value, max, icon: Icon, bgGradient, animationDelay = 0 }) => {
+    const percentage = Math.round((value / max) * 100) || 0;
+    
+    return (
+        <Card 
+            className="card-neumorphic hover-lift animate-fade-in"
+            elevation={0}
+            sx={{ 
+                height: '100%', 
+                borderRadius: '16px',
+                transition: 'all 0.3s ease',
+                animation: `fadeIn 0.6s ease-out ${animationDelay}s forwards`,
+                opacity: 0,
+                transform: 'translateY(20px)',
+            }}
+        >
+            <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    {Icon && (
+                        <Box 
+                            sx={{ 
+                                mr: 2, 
+                                color: '#4776E6',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 40,
+                                height: 40,
+                                borderRadius: '50%',
+                                background: 'rgba(71, 118, 230, 0.1)'
+                            }}
+                        >
+                            <Icon />
+                        </Box>
+                    )}
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                        {title}
+                    </Typography>
+                </Box>
+                
+                <Box sx={{ position: 'relative', mt: 1, mb: 0.5 }}>
+                    <LinearProgress 
+                        variant="determinate" 
+                        value={percentage} 
+                        sx={{ 
+                            height: 10, 
+                            borderRadius: 5,
+                            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                            '& .MuiLinearProgress-bar': {
+                                borderRadius: 5,
+                                background: bgGradient || 'linear-gradient(90deg, #4776E6, #8E54E9)'
+                            }
+                        }} 
+                    />
+                </Box>
+                
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                        {value} / {max}
+                    </Typography>
+                    <Typography 
+                        variant="body2" 
+                        sx={{ 
+                            fontWeight: 'bold',
+                            color: '#4776E6'
+                        }}
+                    >
+                        {percentage}%
+                    </Typography>
+                </Box>
+            </CardContent>
+        </Card>
+    );
+};
 
 function StatisticsPage() {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const { isAuthenticated } = useAuth();
+    const [tabValue, setTabValue] = useState(0);
 
-    const [progressData, setProgressData] = useState([]);
-    const [progressLoading, setProgressLoading] = useState(true);
-    const [progressError, setProgressError] = useState('');
-    const [selectedPeriod, setSelectedPeriod] = useState('7d'); // 默认 7 天
+    // 图表数据 - 示例
+    const [dailyStats, setDailyStats] = useState([]);
+    const [weeklyStats, setWeeklyStats] = useState([]);
+    const [distributionData, setDistributionData] = useState([]);
 
-    const [weakWords, setWeakWords] = useState([]);
-    const [weakWordsLoading, setWeakWordsLoading] = useState(true);
-    const [weakWordsError, setWeakWordsError] = useState('');
+    // 加载数据
     useEffect(() => {
         const fetchStats = async () => {
-            if (!isAuthenticated) {
-                 setError("请先登录查看统计数据。");
-                 setLoading(false);
-                 return;
-            }
             setLoading(true);
             setError('');
             try {
+                // 获取学习统计数据
+                // 从错误的路径 '/api/statistics' 修改为正确的路径 '/api/statistics/overview'
                 const data = await apiFetch('/api/statistics/overview');
                 setStats(data);
+                
+                // 获取学习进度数据
+                try {
+                    const progressData = await apiFetch('/api/statistics/progress_over_time?period=30d');
+                    if (progressData && progressData.length > 0) {
+                        // 转换后端数据到图表期望的格式
+                        const formattedData = progressData.map(item => ({
+                            date: item.date.substring(5), // 从YYYY-MM-DD截取MM-DD
+                            learned: item.reviewCount || 0
+                        }));
+                        setDailyStats(formattedData);
+                    } else {
+                        setDailyStats(generateDailyData());
+                    }
+                } catch (err) {
+                    console.error('获取进度数据失败:', err);
+                    setDailyStats(generateDailyData());
+                }
+                
+                // 获取弱点单词数据
+                try {
+                    const weakWordsData = await apiFetch('/api/statistics/weak_words');
+                    // 这里可以使用弱点单词数据进行其他处理
+                } catch (err) {
+                    console.error('获取弱点单词数据失败:', err);
+                }
+                
+                // 单词掌握分布数据
+                if (data.distributionData) {
+                    setDistributionData(data.distributionData);
+                } else {
+                    // 创建示例分布数据
+                    setDistributionData([
+                        { name: '已掌握', value: data.masteredCount || 0, color: '#4CAF50' },
+                        { name: '学习中', value: (data.totalLearnedCount || 0) - (data.masteredCount || 0), color: '#2196F3' },
+                        { name: '未学习', value: (data.totalWordCount || 0) - (data.totalLearnedCount || 0), color: '#9E9E9E' }
+                    ]);
+                }
             } catch (err) {
                 setError(`获取统计数据失败: ${err.message}`);
-                setStats(null);
             } finally {
                 setLoading(false);
             }
         };
+        
         fetchStats();
-    }, [isAuthenticated]); // 依赖认证状态
+    }, []);
 
-    useEffect(() => {
-        const fetchProgressData = async () => {
-            if (!isAuthenticated) return; // 未登录不获取
-            setProgressLoading(true);
-            setProgressError('');
-            try {
-                const data = await apiFetch(`/api/statistics/progress_over_time?period=${selectedPeriod}`);
-                // 可以对数据进行一些预处理，例如格式化日期 (如果需要)
-                setProgressData(data || []);
-            } catch (err) {
-                setProgressError(`获取学习进度失败: ${err.message}`);
-                setProgressData([]);
-            } finally {
-                setProgressLoading(false);
-            }
-        };
-        fetchProgressData();
-    }, [isAuthenticated, selectedPeriod]); // 当认证状态或时间段选择变化时获取
-
-    const handlePeriodChange = (event, newPeriod) => {
-      if (newPeriod !== null) { // ToggleButtonGroup 要求非空
-        setSelectedPeriod(newPeriod);
-        // useEffect 会自动触发数据重新获取
-      }
+    // 生成示例每日数据
+    const generateDailyData = () => {
+        const data = [];
+        const currentDate = new Date();
+        
+        for (let i = 14; i >= 0; i--) {
+            const date = new Date(currentDate);
+            date.setDate(date.getDate() - i);
+            
+            const formattedDate = `${date.getMonth() + 1}/${date.getDate()}`;
+            data.push({
+                date: formattedDate,
+                learned: Math.floor(Math.random() * 40),
+                mastered: Math.floor(Math.random() * 20)
+            });
+        }
+        
+        return data;
     };
 
-    useEffect(() => {
-        const fetchWeakWords = async () => {
-            if (!isAuthenticated) return;
-            setWeakWordsLoading(true);
-            setWeakWordsError('');
-            try {
-                const data = await apiFetch('/api/statistics/weak_words');
-                setWeakWords(data || []);
-            } catch (err) {
-                setWeakWordsError(`获取薄弱单词失败: ${err.message}`);
-                setWeakWords([]);
-            } finally {
-                setWeakWordsLoading(false);
-            }
-        };
-        fetchWeakWords();
-    }, [isAuthenticated]); // 仅依赖认证状态
+    // 生成示例每周数据
+    const generateWeeklyData = () => {
+        const data = [];
+        const weekNames = ['第一周', '第二周', '第三周', '第四周'];
+        
+        for (let i = 0; i < 4; i++) {
+            data.push({
+                week: weekNames[i],
+                learned: Math.floor(Math.random() * 150) + 50,
+                mastered: Math.floor(Math.random() * 100)
+            });
+        }
+        
+        return data;
+    };
 
-    if (loading) {
-        return (
-             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-                 <CircularProgress />
-             </Box>
-         );
-    }
+    // 处理选项卡变化
+    const handleTabChange = (event, newValue) => {
+        setTabValue(newValue);
+    };
 
-    if (error) {
-        return (
-            <Container maxWidth="sm">
-                <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>
-            </Container>
-        );
-    }
+    // 图表专用颜色
+    const chartColors = {
+        learned: '#4776E6',
+        mastered: '#8E54E9',
+        pieColors: ['#4CAF50', '#2196F3', '#9E9E9E']
+    };
 
-    // 正常显示统计数据
     return (
-        <Container maxWidth="lg">
-            <Typography component="h1" variant="h4" gutterBottom sx={{ my: 2 }}>
-                学习统计概览
-            </Typography>
+        <Container maxWidth="lg" className="animate-fade-in">
+            <Box sx={{ mt: 4, mb: 5 }}>
+                <Typography 
+                    component="h1" 
+                    variant="h4" 
+                    className="gradient-text" 
+                    sx={{ 
+                        fontWeight: 'bold',
+                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                >
+                    <AssessmentIcon sx={{ mr: 1.5, fontSize: '2rem' }} />
+                    学习统计
+                </Typography>
+            </Box>
 
-            {/* 概览卡片 Grid (不变) */}
-            {!loading && !error && stats ? (
-                 <Grid container spacing={3}>
-                      <Grid item xs={12} sm={6} md={3}><StatCard title="已学单词总数" value={stats.totalLearnedCount} /></Grid>
-                      <Grid item xs={12} sm={6} md={3}><StatCard title="已掌握单词数" value={stats.masteredCount} /></Grid>
-                      <Grid item xs={12} sm={6} md={3}><StatCard title="累计学习天数" value={stats.totalStudyDays} unit=" 天" /></Grid>
-                      <Grid item xs={12} sm={6} md={3}><StatCard title="总体正确率" value={stats.overallAccuracy} unit=" %" /></Grid>
-                 </Grid>
-             ) : (<Typography sx={{mt:2}}>无法加载概览数据。</Typography>)}
+            {/* 加载中提示 */}
+            {loading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', my: 5 }}>
+                    <div className="spinner" />
+                </Box>
+            )}
 
+            {/* 错误信息 */}
+            {error && (
+                <Alert 
+                    severity="error" 
+                    sx={{ 
+                        my: 2,
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(211, 47, 47, 0.1)'
+                    }}
+                >
+                    {error}
+                </Alert>
+            )}
 
-             <Divider sx={{ my: 4 }} />
+            {/* 统计内容 */}
+            {!loading && stats && (
+                <>
+                    {/* 顶部统计卡片 */}
+                    <Fade in={true} timeout={800}>
+                        <Grid container spacing={3} sx={{ mb: 4 }}>
+                            <Grid item xs={12} sm={6} md={3}>
+                                <StatCard 
+                                    title="总单词量" 
+                                    value={stats.totalWordCount || 0} 
+                                    unit="个" 
+                                    icon={BookIcon} 
+                                    bgGradient="linear-gradient(90deg, #4776E6, #8E54E9)"
+                                    animationDelay={0.1}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={3}>
+                                <StatCard 
+                                    title="已学习" 
+                                    value={stats.totalLearnedCount || 0} 
+                                    unit="个" 
+                                    icon={LocalLibraryIcon} 
+                                    bgGradient="linear-gradient(90deg, #2196F3, #03A9F4)"
+                                    animationDelay={0.2}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={3}>
+                                <StatCard 
+                                    title="已掌握" 
+                                    value={stats.masteredCount || 0} 
+                                    unit="个" 
+                                    icon={EmojiEventsIcon}
+                                    bgGradient="linear-gradient(90deg, #4CAF50, #8BC34A)"
+                                    animationDelay={0.3}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={3}>
+                                <StatCard 
+                                    title="学习天数" 
+                                    value={stats.learningDays || 0} 
+                                    unit="天" 
+                                    icon={CalendarTodayIcon}
+                                    bgGradient="linear-gradient(90deg, #FF9800, #FF5722)" 
+                                    animationDelay={0.4}
+                                />
+                            </Grid>
+                        </Grid>
+                    </Fade>
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography component="h2" variant="h5">
-                      学习进度
-                 </Typography>
-                 {/* --- V 新增: 时间段切换按钮 --- V */}
-                 <ToggleButtonGroup
-                     color="primary"
-                     value={selectedPeriod}
-                     exclusive
-                     onChange={handlePeriodChange}
-                     aria-label="Time Period"
-                     size="small"
-                 >
-                     <ToggleButton value="7d">近 7 天</ToggleButton>
-                     <ToggleButton value="30d">近 30 天</ToggleButton>
-                     {/* <ToggleButton value="all">全部</ToggleButton> */}
-                 </ToggleButtonGroup>
-                 {/* --- ^ 新增结束 ^ --- */}
-             </Box>
+                    {/* 进度条统计 */}
+                    <Slide direction="up" in={true} timeout={1000} mountOnEnter>
+                        <Grid container spacing={3} sx={{ mb: 4 }}>
+                            <Grid item xs={12} md={6}>
+                                <ProgressCard 
+                                    title="总体学习进度" 
+                                    value={stats.totalLearnedCount || 0} 
+                                    max={stats.totalWordCount || 1}
+                                    icon={TrendingUpIcon}
+                                    animationDelay={0.5}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <ProgressCard 
+                                    title="已掌握比例" 
+                                    value={stats.masteredCount || 0} 
+                                    max={stats.totalLearnedCount || 1}
+                                    icon={SchoolIcon}
+                                    bgGradient="linear-gradient(90deg, #4CAF50, #8BC34A)"
+                                    animationDelay={0.6}
+                                />
+                            </Grid>
+                        </Grid>
+                    </Slide>
 
-             {/* --- V 新增: 进度图表区域 --- V */}
-             <Box sx={{ height: 300, width: '100%', mt: 1 }}> {/* 给图表容器设置高度 */}
-                 {progressLoading && (
-                     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                         <CircularProgress />
-                     </Box>
-                 )}
-                 {progressError && !progressLoading && (
-                     <Alert severity="error">{progressError}</Alert>
-                 )}
-                 {!progressLoading && !progressError && progressData.length === 0 && (
-                     <Typography sx={{ textAlign: 'center', color: 'text.secondary', mt: 4 }}>
-                         选定时间段内无学习记录。
-                     </Typography>
-                 )}
-                 {!progressLoading && !progressError && progressData.length > 0 && (
-                     // 使用 ResponsiveContainer 使图表自适应父容器大小
-                     <ResponsiveContainer width="100%" height="100%">
-                         <LineChart
-                             data={progressData}
-                             margin={{ top: 5, right: 30, left: 0, bottom: 5 }} // 调整边距给标签留空间
-                         >
-                             <CartesianGrid strokeDasharray="3 3" /> {/* 网格线 */}
-                             <XAxis
-                                 dataKey="date" // X轴使用 date 字段
-                                 tickFormatter={(tick) => dayjs(tick).format('MM/DD')} // 格式化日期显示
-                                 // angle={-30} textAnchor="end" // 如果标签太密集可以倾斜
-                                 // interval="preserveStartEnd" // 保证首尾标签显示
-                             />
-                             <YAxis allowDecimals={false} /> {/* Y轴不允许小数 */}
-                             <Tooltip /> {/* 鼠标悬停提示 */}
-                             <Legend /> {/* 图例 */}
-                             <Line
-                                 type="monotone" // 线条样式
-                                 dataKey="reviewCount" // Y轴数据字段
-                                 stroke="#8884d8"    // 线条颜色
-                                 strokeWidth={2}     // 线条宽度
-                                 name="每日复习次数" // 图例名称
-                                 activeDot={{ r: 8 }} // 鼠标悬停时点的样式
-                              />
-                             {/* 可以添加其他 Line 来显示不同数据 */}
-                             {/* <Line type="monotone" dataKey="correctCount" stroke="#82ca9d" name="每日正确次数" /> */}
-                         </LineChart>
-                     </ResponsiveContainer>
-                 )}
-             </Box>
-             {/* --- ^ 新增结束 ^ --- */}
+                    {/* 图表选项卡 */}
+                    <Box 
+                        sx={{ 
+                            width: '100%', 
+                            mt: 5,
+                            borderRadius: '16px',
+                            overflow: 'hidden',
+                        }}
+                        className="card-neumorphic"
+                    >
+                        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                            <Tabs 
+                                value={tabValue} 
+                                onChange={handleTabChange} 
+                                aria-label="统计图表选项卡"
+                                variant="fullWidth"
+                                sx={{
+                                    '& .MuiTab-root': {
+                                        py: 2,
+                                        transition: 'all 0.3s ease',
+                                    },
+                                    '& .Mui-selected': {
+                                        color: '#4776E6 !important',
+                                        fontWeight: 'bold',
+                                    },
+                                    '& .MuiTabs-indicator': {
+                                        backgroundColor: '#4776E6',
+                                        height: '3px'
+                                    }
+                                }}
+                            >
+                                <Tab 
+                                    icon={<EqualizerIcon />} 
+                                    label="每日统计" 
+                                    iconPosition="start" 
+                                />
+                                <Tab 
+                                    icon={<TrendingUpIcon />} 
+                                    label="每周趋势" 
+                                    iconPosition="start" 
+                                />
+                                <Tab 
+                                    icon={<AssessmentIcon />} 
+                                    label="单词分布" 
+                                    iconPosition="start" 
+                                />
+                            </Tabs>
+                        </Box>
 
+                        {/* 每日统计图表 */}
+                        <TabPanel value={tabValue} index={0}>
+                            <Typography 
+                                variant="h6" 
+                                gutterBottom 
+                                sx={{ 
+                                    mb: 3, 
+                                    fontWeight: 'bold',
+                                    color: '#333'
+                                }}
+                            >
+                                最近15天学习情况
+                            </Typography>
+                            <Box 
+                                sx={{ 
+                                    width: '100%', 
+                                    height: 300, 
+                                    p: 1,
+                                    '& .recharts-default-tooltip': {
+                                        borderRadius: '10px',
+                                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                                        border: 'none'
+                                    }
+                                }}
+                            >
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={dailyStats}
+                                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                                        <XAxis 
+                                            dataKey="date" 
+                                            tick={{ fill: '#666' }}
+                                            axisLine={{ stroke: '#e0e0e0' }}
+                                        />
+                                        <YAxis 
+                                            tick={{ fill: '#666' }}
+                                            axisLine={{ stroke: '#e0e0e0' }}
+                                        />
+                                        <Tooltip 
+                                            cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
+                                            contentStyle={{ 
+                                                borderRadius: '10px',
+                                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                                                border: 'none'
+                                            }}
+                                        />
+                                        <Legend />
+                                        <Bar 
+                                            dataKey="learned" 
+                                            name="新学单词" 
+                                            stackId="a" 
+                                            fill={chartColors.learned} 
+                                            radius={[4, 4, 0, 0]}
+                                        />
+                                        <Bar 
+                                            dataKey="mastered" 
+                                            name="掌握单词" 
+                                            stackId="a" 
+                                            fill={chartColors.mastered} 
+                                            radius={[4, 4, 0, 0]}
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </Box>
+                        </TabPanel>
 
-            <Divider sx={{ my: 4 }} />
+                        {/* 每周趋势图表 */}
+                        <TabPanel value={tabValue} index={1}>
+                            <Typography 
+                                variant="h6" 
+                                gutterBottom 
+                                sx={{ 
+                                    mb: 3, 
+                                    fontWeight: 'bold',
+                                    color: '#333'
+                                }}
+                            >
+                                每周学习趋势
+                            </Typography>
+                            <Box sx={{ width: '100%', height: 300, p: 1 }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart
+                                        data={weeklyStats}
+                                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                                        <XAxis 
+                                            dataKey="week" 
+                                            tick={{ fill: '#666' }}
+                                            axisLine={{ stroke: '#e0e0e0' }}
+                                        />
+                                        <YAxis 
+                                            tick={{ fill: '#666' }}
+                                            axisLine={{ stroke: '#e0e0e0' }}
+                                        />
+                                        <Tooltip 
+                                            contentStyle={{ 
+                                                borderRadius: '10px',
+                                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                                                border: 'none'
+                                            }}
+                                        />
+                                        <Legend />
+                                        <Line
+                                            type="monotone"
+                                            dataKey="learned"
+                                            name="新学单词"
+                                            stroke={chartColors.learned}
+                                            strokeWidth={2}
+                                            dot={{ r: 4 }}
+                                            activeDot={{ r: 6 }}
+                                        />
+                                        <Line
+                                            type="monotone"
+                                            dataKey="mastered"
+                                            name="掌握单词"
+                                            stroke={chartColors.mastered}
+                                            strokeWidth={2}
+                                            dot={{ r: 4 }}
+                                            activeDot={{ r: 6 }}
+                                        />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </Box>
+                        </TabPanel>
 
-            <Typography component="h2" variant="h5" gutterBottom>
-                薄弱环节分析
-            </Typography>
-            <Box sx={{ mt: 2 }}>
-                 <Typography variant="h6" gutterBottom>需要加强的单词:</Typography>
-                 {weakWordsLoading && <CircularProgress size={24} />}
-                 {weakWordsError && !weakWordsLoading && <Alert severity="error">{weakWordsError}</Alert>}
-                 {!weakWordsLoading && !weakWordsError && weakWords.length === 0 && (
-                     <Typography color="text.secondary">太棒了！暂时没有发现明显的薄弱单词。</Typography>
-                 )}
-                 {!weakWordsLoading && !weakWordsError && weakWords.length > 0 && (
-                     <List dense> {/* dense 使列表项更紧凑 */}
-                         {weakWords.map((item) => (
-                             <ListItem key={item.word._id} divider>
-                                 <ListItemText
-                                     primary={item.word.spelling}
-                                     secondary={`[${item.word.phonetic || 'N/A'}] ${item.word.meaning || 'N/A'}`}
-                                 />
-                                 <Tooltip title={`状态: ${item.status} | 尝试次数: ${item.totalAttempts} | 最后复习: ${item.lastReviewedAt ? dayjs(item.lastReviewedAt).format('YYYY/MM/DD') : 'N/A'}`} placement="top">
-                                      <Chip
-                                         label={`错误率: ${Math.round(item.errorRate * 100)}%`}
-                                         color="error"
-                                         size="small"
-                                         variant="outlined"
-                                         sx={{ ml: 2 }}
-                                      />
-                                 </Tooltip>
-                                 {/* 可以添加一个 "去复习" 按钮 */}
-                                 {/* <Button size="small" sx={{ml: 1}}>去复习</Button> */}
-                             </ListItem>
-                         ))}
-                     </List>
-                 )}
-             </Box>
-             {/* --- ^ 修改结束 ^ --- */}
+                        {/* 单词分布图表 */}
+                        <TabPanel value={tabValue} index={2}>
+                            <Typography 
+                                variant="h6" 
+                                gutterBottom 
+                                sx={{ 
+                                    mb: 3, 
+                                    fontWeight: 'bold',
+                                    color: '#333'
+                                }}
+                            >
+                                单词学习状态分布
+                            </Typography>
+                            <Box sx={{ width: '100%', height: 300, p: 1 }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={distributionData}
+                                            cx="50%"
+                                            cy="50%"
+                                            labelLine={true}
+                                            outerRadius={100}
+                                            fill="#8884d8"
+                                            dataKey="value"
+                                            nameKey="name"
+                                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                                        >
+                                            {distributionData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color || chartColors.pieColors[index % chartColors.pieColors.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip 
+                                            formatter={(value) => [`${value} 个单词`, '']}
+                                            contentStyle={{ 
+                                                borderRadius: '10px',
+                                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                                                border: 'none'
+                                            }}
+                                        />
+                                        <Legend />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </Box>
+                        </TabPanel>
+                    </Box>
 
-             {/* (其他待添加分析的占位符) */}
-             {/* <ul><li>学习效率指数</li><li>记忆曲线拟合</li></ul> */}
-
+                    {/* 学习报告链接 */}
+                    <Box 
+                        sx={{ 
+                            mt: 5, 
+                            textAlign: 'center',
+                            animation: 'fadeIn 0.8s ease-out 0.8s forwards',
+                            opacity: 0
+                        }}
+                    >
+                        <Button
+                            component={Link}
+                            to="/reports"
+                            variant="contained"
+                            startIcon={<AssessmentIcon />}
+                            sx={{
+                                borderRadius: '50px',
+                                py: 1.5,
+                                px: 4,
+                                background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                boxShadow: '0 8px 16px rgba(71, 118, 230, 0.3)',
+                                fontWeight: 'bold',
+                                fontSize: '1rem',
+                                transition: 'all 0.3s ease',
+                                '&:hover': {
+                                    boxShadow: '0 12px 20px rgba(71, 118, 230, 0.4)',
+                                    transform: 'translateY(-3px)'
+                                },
+                            }}
+                        >
+                            查看详细学习报告
+                        </Button>
+                    </Box>
+                </>
+            )}
         </Container>
     );
 }

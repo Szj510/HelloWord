@@ -22,8 +22,17 @@ import IconButton from '@mui/material/IconButton'; // 用于发音按钮
 import StarBorderIcon from '@mui/icons-material/StarBorder'; // 空星
 import StarIcon from '@mui/icons-material/Star'; // 实心星
 import Snackbar from '@mui/material/Snackbar'; 
+import Paper from '@mui/material/Paper';
+import LinearProgress from '@mui/material/LinearProgress';
+import Tooltip from '@mui/material/Tooltip';
+import Zoom from '@mui/material/Zoom';
+import Fade from '@mui/material/Fade';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp'; // 发音图标
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // 提示图标
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'; // 正确图标
+import CancelIcon from '@mui/icons-material/Cancel'; // 错误图标
+import Grow from '@mui/material/Grow'; // 添加Grow动画效果
 
-// import VolumeUpIcon from '@mui/icons-material/VolumeUp'; // 发音图标
 // 辅助函数：根据状态返回 Chip 的颜色
 const getStatusColor = (status) => {
     switch (status) {
@@ -45,7 +54,6 @@ function LearningPage() {
   const initialNewLimit = queryParams.get('newLimit');       // 可以从 URL 传递限制
   const initialReviewLimit = queryParams.get('reviewLimit');
     
-    //const [wordbookName, setWordbookName] = useState('');
   const [sessionTitle, setSessionTitle] = useState('学习会话'); // 通用标题
   const [wordsToLearn, setWordsToLearn] = useState([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
@@ -59,442 +67,829 @@ function LearningPage() {
   const spellingInputRef = useRef(null); // 用于聚焦输入框
   
   const [notebookWordIds, setNotebookWordIds] = useState(new Set()); // 存储生词本中单词 ID 的 Set
-    const [loadingNotebookStatus, setLoadingNotebookStatus] = useState(true); // 加载生词本状态
+  const [loadingNotebookStatus, setLoadingNotebookStatus] = useState(true); // 加载生词本状态
+  const [playingAudio, setPlayingAudio] = useState(false); // 新增：控制发音按钮状态
     
-    const [snackbarOpen, setSnackbarOpen] = useState(false);
-     const [snackbarMessage, setSnackbarMessage] = useState('');
-     const [snackbarSeverity, setSnackbarSeverity] = useState('success');
-     // Snackbar functions
-     const showSnackbar = (message, severity = 'success') => { setSnackbarMessage(message); setSnackbarSeverity(severity); setSnackbarOpen(true); };
-     const handleSnackbarClose = (event, reason) => { if (reason === 'clickaway') { return; } setSnackbarOpen(false); };
-  // --- V 修改: 获取学习会话数据 --- V
-    const fetchLearningSession = useCallback(async () => {
-        setLoading(true);
-        setError('');
-        setWordsToLearn([]); // 清空旧数据
-        try {
-            // 构建 API 请求 URL，包含 wordbookId 和限制参数
-            const params = new URLSearchParams({ wordbookId });
-            if (initialNewLimit) params.append('newLimit', initialNewLimit);
-            if (initialReviewLimit) params.append('reviewLimit', initialReviewLimit);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  // Snackbar functions
+  const showSnackbar = (message, severity = 'success') => { setSnackbarMessage(message); setSnackbarSeverity(severity); setSnackbarOpen(true); };
+  const handleSnackbarClose = (event, reason) => { if (reason === 'clickaway') { return; } setSnackbarOpen(false); };
+  
+  const fetchLearningSession = useCallback(async () => {
+      setLoading(true);
+      setError('');
+      setWordsToLearn([]); // 清空旧数据
+      try {
+          const params = new URLSearchParams({ wordbookId });
+          if (initialNewLimit) params.append('newLimit', initialNewLimit);
+          if (initialReviewLimit) params.append('reviewLimit', initialReviewLimit);
 
-            console.log(`Fetching learning session for wordbook: ${wordbookId} with params: ${params.toString()}`);
-            const data = await apiFetch(`/api/learning/session?${params.toString()}`);
+          const data = await apiFetch(`/api/learning/session?${params.toString()}`);
 
-            if (data && data.sessionWords && Array.isArray(data.sessionWords)) {
-                 if (data.sessionWords.length === 0) {
-                     // setError("太棒了！当前没有需要学习或复习的单词。"); // 或者给个提示
-                     setSessionTitle("任务完成"); // 更新标题
-                 } else {
-                     setWordsToLearn(data.sessionWords);
-                     setCurrentWordIndex(0);
-                     setIsRevealed(false);
-                     setFeedback({ show: false, correct: false, message: '' });
-                     setSpellingInput('');
-                     // 设置一个更具体的标题，如果需要可以单独获取单词书名称
-                     // setSessionTitle(`学习: ${wordbookName}`);
-                     setSessionTitle(`学习会话`); // 通用标题
-                      // 聚焦 (如果模式是 spelling)
-                     if (learningMode === 'spelling') {
-                          setTimeout(() => spellingInputRef.current?.focus(), 0);
-                      }
-                 }
-            } else {
-                throw new Error("无效的会话数据格式");
-            }
-        } catch (err) {
-            console.error('获取学习会话失败:', err);
-            setError(`加载学习会话失败: ${err.message}`);
-        } finally {
-            setLoading(false);
-        }
-    }, [wordbookId, initialNewLimit, initialReviewLimit, learningMode]); // learningMode 加入依赖，聚焦用
+          if (data && data.sessionWords && Array.isArray(data.sessionWords)) {
+              if (data.sessionWords.length === 0) {
+                  setSessionTitle("任务完成"); // 更新标题
+              } else {
+                  setWordsToLearn(data.sessionWords);
+                  setCurrentWordIndex(0);
+                  setIsRevealed(false);
+                  setFeedback({ show: false, correct: false, message: '' });
+                  setSpellingInput('');
+                  setSessionTitle(`学习会话`); // 通用标题
+                  if (learningMode === 'spelling') {
+                      setTimeout(() => spellingInputRef.current?.focus(), 0);
+                  }
+              }
+          } else {
+              throw new Error("无效的会话数据格式");
+          }
+      } catch (err) {
+          setError(`加载学习会话失败: ${err.message}`);
+      } finally {
+          setLoading(false);
+      }
+  }, [wordbookId, initialNewLimit, initialReviewLimit, learningMode]);
 
-    // --- V 新增: 获取生词本单词 ID 列表 --- V
-    const fetchNotebookIds = useCallback(async () => {
-        if (!isAuthenticated) { setLoadingNotebookStatus(false); return; }
-        setLoadingNotebookStatus(true);
-        try {
-            // 调用优化后的 API，只获取 ID
-            const data = await apiFetch('/api/notebook/entries?fields=wordId');
-            setNotebookWordIds(new Set(data?.wordIds || [])); // 更新 Set
-        } catch (err) {
-            console.error("获取生词本 ID 失败:", err);
-            // 此处错误不阻塞主要学习流程，可以选择不提示用户
-        } finally {
-            setLoadingNotebookStatus(false);
-        }
-    }, [isAuthenticated]);
+  const fetchNotebookIds = useCallback(async () => {
+      if (!isAuthenticated) { setLoadingNotebookStatus(false); return; }
+      setLoadingNotebookStatus(true);
+      try {
+          const data = await apiFetch('/api/notebook/entries?fields=wordId');
+          setNotebookWordIds(new Set(data?.wordIds || [])); // 更新 Set
+      } catch (err) {
+          console.error("获取生词本 ID 失败:", err);
+      } finally {
+          setLoadingNotebookStatus(false);
+      }
+  }, [isAuthenticated]);
 
-    useEffect(() => {
-        fetchLearningSession(); // 获取会话单词
-        fetchNotebookIds();   // 同时获取生词本 ID
-    }, [fetchLearningSession, fetchNotebookIds]); // 依赖 fetchLearningSession
-    // --- ^ 修改结束 ^ ---
-//   const fetchWordbookData = useCallback(async () => {
-//         setLoading(true); setError('');
-//         try {
-//             const data = await apiFetch(`/api/wordbooks/${wordbookId}`);
-//             if (data && data.words && Array.isArray(data.words)) {
-//                 setWordbookName(data.name || '未知单词书');
-//                 // TODO: 后续应根据复习算法获取和排序单词，这里暂时用单词书顺序
-//                 setWordsToLearn(data.words);
-//                 if (data.words.length === 0) { setError("这个单词书是空的，无法开始学习。"); }
-//                 else {
-//                     setCurrentWordIndex(0);
-//                     // V--- 重置拼写相关状态 ---V
-//                     setSpellingInput('');
-//                     // 初始不聚焦，让用户先看提示
-//                     // setTimeout(() => spellingInputRef.current?.focus(), 100);
-//                     // --- ^ 重置结束 ^ ---
-//                 }
-//             } else { throw new Error("无效的单词书数据格式"); }
-//         } catch (err) { setError(`加载学习会话失败: ${err.message}`); setWordsToLearn([]); }
-//         finally { setLoading(false); }
-//     }, [wordbookId]);
-//     useEffect(() => { fetchWordbookData(); }, [fetchWordbookData]);
-  // 获取当前显示的单词
+  useEffect(() => {
+      fetchLearningSession(); // 获取会话单词
+      fetchNotebookIds();   // 同时获取生词本 ID
+  }, [fetchLearningSession, fetchNotebookIds]);
+
   const currentWord = wordsToLearn.length > 0 ? wordsToLearn[currentWordIndex] : null;
 
-    // --- V 新增: 判断当前单词是否在生词本中 --- V
-    const isWordInNotebook = currentWord ? notebookWordIds.has(currentWord._id.toString()) : false;
+  const isWordInNotebook = currentWord ? notebookWordIds.has(currentWord._id.toString()) : false;
+  
   const handleCardClick = () => { setIsRevealed(!isRevealed); };
 
-    // --- V 新增: 处理添加到/移出生词本 --- V
-    const handleToggleNotebook = async () => {
-        if (!currentWord || isSubmitting || loadingNotebookStatus) return; // 防止重复操作
+  const handleToggleNotebook = async () => {
+      if (!currentWord || isSubmitting || loadingNotebookStatus) return;
 
-        const wordId = currentWord._id;
-        const inNotebook = isWordInNotebook; // 当前状态
+      const wordId = currentWord._id;
+      const inNotebook = isWordInNotebook;
 
-        // 优化：立即更新 UI 状态，然后发送请求
-        const optimisticNewSet = new Set(notebookWordIds);
-        if (inNotebook) {
-            optimisticNewSet.delete(wordId.toString());
-        } else {
-            optimisticNewSet.add(wordId.toString());
-        }
-        setNotebookWordIds(optimisticNewSet);
+      const optimisticNewSet = new Set(notebookWordIds);
+      if (inNotebook) {
+          optimisticNewSet.delete(wordId.toString());
+      } else {
+          optimisticNewSet.add(wordId.toString());
+      }
+      setNotebookWordIds(optimisticNewSet);
 
-        try {
-            if (inNotebook) {
-                // 从生词本移除
-                await apiFetch(`/api/notebook/entries/${wordId}`, { method: 'DELETE' });
-                showSnackbar(`"${currentWord.spelling}" 已从生词本移除`, 'info');
-            } else {
-                // 添加到生词本
-                await apiFetch('/api/notebook/entries', {
-                    method: 'POST',
-                    body: JSON.stringify({ wordId: wordId, wordbookId: wordbookId }) // 需要提供来源单词书 ID
-                });
-                showSnackbar(`"${currentWord.spelling}" 已添加到生词本`, 'success');
-            }
-            // 请求成功，UI 状态已更新，无需额外操作
-        } catch (err) {
-            console.error("生词本操作失败:", err);
-            showSnackbar(`操作失败: ${err.message}`, 'error');
-            // 请求失败，回滚 UI 状态
-            setNotebookWordIds(notebookWordIds); // 恢复到操作前的状态
-        }
-    };
+      try {
+          if (inNotebook) {
+              await apiFetch(`/api/notebook/entries/${wordId}`, { method: 'DELETE' });
+              showSnackbar(`"${currentWord.spelling}" 已从生词本移除`, 'info');
+          } else {
+              await apiFetch('/api/notebook/entries', {
+                  method: 'POST',
+                  body: JSON.stringify({ wordId: wordId, wordbookId: wordbookId })
+              });
+              showSnackbar(`"${currentWord.spelling}" 已添加到生词本`, 'success');
+          }
+      } catch (err) {
+          showSnackbar(`操作失败: ${err.message}`, 'error');
+          setNotebookWordIds(notebookWordIds);
+      }
+  };
 
-    // --- V 新增: 处理模式切换 --- V
-    const handleModeChange = (event, newMode) => {
-        if (newMode !== null) { // ToggleButtonGroup 要求非空
-            setLearningMode(newMode);
-            setIsRevealed(false); // 切换模式时重置显示状态
-            setSpellingInput(''); // 清空拼写输入
-            setFeedback({ show: false, correct: false, message: '' }); // 清除反馈
-            setError(''); // 清除通用错误
-            // 切换到拼写模式时自动聚焦输入框
-            if (newMode === 'spelling') {
-                // 使用 setTimeout 确保输入框已渲染
+  const handleModeChange = (event, newMode) => {
+      if (newMode !== null) {
+          setLearningMode(newMode);
+          setIsRevealed(false);
+          setSpellingInput('');
+          setFeedback({ show: false, correct: false, message: '' });
+          setError('');
+          if (newMode === 'spelling') {
+              setTimeout(() => spellingInputRef.current?.focus(), 0);
+          }
+      }
+  };
+
+  const handleCheckSpelling = () => {
+      if (!currentWord || isSubmitting) return;
+
+      const isCorrect = spellingInput.trim().toLowerCase() === currentWord.spelling.toLowerCase();
+
+      setFeedback({ show: true, correct: isCorrect, message: isCorrect ? '正确!' : `正确答案: ${currentWord.spelling}` });
+
+      setIsSubmitting(true);
+      setTimeout(() => {
+          recordAndProceed(isCorrect ? 'know' : 'dont_know');
+      }, isCorrect ? 800 : 1500);
+  };
+
+  const handleSpellingKeyPress = (event) => {
+      if (event.key === 'Enter' && !feedback.show) {
+          handleCheckSpelling();
+      }
+  };
+
+  const playAudio = async () => {
+      if (!currentWord || playingAudio) return;
+      
+      setPlayingAudio(true);
+      
+      try {
+          showSnackbar("正在获取发音...", "info");
+          
+          const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(currentWord.spelling)}`);
+          
+          if (!response.ok) throw new Error("API请求失败");
+          
+          const data = await response.json();
+          
+          let audioUrl = null;
+          if (data && data.length > 0 && data[0].phonetics) {
+              const usAudio = data[0].phonetics.find(p => 
+                  p.audio && p.audio.length > 0 && (p.locale === 'us' || p.audio.includes('us'))
+              );
+              const anyAudio = data[0].phonetics.find(p => p.audio && p.audio.length > 0);
+              
+              audioUrl = usAudio?.audio || anyAudio?.audio;
+          }
+          
+          if (audioUrl) {
+              const audio = new Audio(audioUrl);
+              audio.onerror = () => {
+                  throw new Error("音频加载失败");
+              };
+              await audio.play();
+              showSnackbar("正在播放发音", "success");
+              
+              audio.onended = () => setPlayingAudio(false);
+              return;
+          } else {
+              throw new Error("未找到发音音频");
+          }
+      } catch (err) {
+          fallbackSpeech();
+      }
+  };
+  
+  const fallbackSpeech = () => {
+      if (currentWord && 'speechSynthesis' in window) {
+          try {
+              const utterance = new SpeechSynthesisUtterance(currentWord.spelling);
+              utterance.lang = 'en-US';
+              utterance.rate = 0.8;
+              
+              utterance.onend = () => setPlayingAudio(false);
+              utterance.onerror = () => setPlayingAudio(false);
+              
+              window.speechSynthesis.cancel();
+              window.speechSynthesis.speak(utterance);
+              showSnackbar("使用本地合成播放发音", "info");
+          } catch (e) {
+              showSnackbar("无法播放发音", "error");
+              setPlayingAudio(false);
+          }
+      } else {
+          showSnackbar("浏览器不支持语音合成", "error");
+          setPlayingAudio(false);
+      }
+  };
+
+  const goToNextWord = () => {
+      if (currentWordIndex < wordsToLearn.length - 1) {
+          setCurrentWordIndex(currentWordIndex + 1);
+          setIsRevealed(false);
+          setSpellingInput('');
+          setFeedback({ show: false, correct: false, message: '' });
+          setError('');
+           if (learningMode === 'spelling') {
                 setTimeout(() => spellingInputRef.current?.focus(), 0);
             }
-        }
-    };
+      } else {
+          navigate('/wordbooks', { state: { completionMessage: "恭喜！您已完成本轮学习！" } });
+      }
+  };
 
-    // --- V 新增: 处理拼写检查 --- V
-    const handleCheckSpelling = () => {
-        if (!currentWord || isSubmitting) return;
-
-        const isCorrect = spellingInput.trim().toLowerCase() === currentWord.spelling.toLowerCase();
-
-        setFeedback({ show: true, correct: isCorrect, message: isCorrect ? '正确!' : `正确答案: ${currentWord.spelling}` });
-
-        // 重要: 只有在给出反馈后才记录并前进 (例如用户看到反馈后点击 "继续" 按钮)
-        // 或者: 无论对错都记录，然后前进 (更快的节奏)
-        // 我们先采用无论对错都记录并前进的方式
-
-        // 延迟一点时间让用户看到反馈，然后记录并前进
-        setIsSubmitting(true); // 标记为提交中，防止此时切换单词
-        setTimeout(() => {
-             // 将拼写对错映射为 'know' / 'dont_know' 来调用现有 API
-            recordAndProceed(isCorrect ? 'know' : 'dont_know');
-            // 注意：recordAndProceed 内部的 finally 会将 isSubmitting 设为 false
-        }, isCorrect ? 800 : 1500); // 正确反馈显示短一点，错误反馈显示长一点
-
-    };
-
-    // 处理拼写输入框的回车事件
-     const handleSpellingKeyPress = (event) => {
-         if (event.key === 'Enter' && !feedback.show) { // 只有在没有显示反馈时回车才有效
-             handleCheckSpelling();
-         }
-     };
-
-     // --- 实现播放发音功能 ---
-     const playAudio = async () => {
-         if (!currentWord) return;
-         
-         // 尝试使用Free Dictionary API获取发音
-         try {
-             // 显示加载提示
-             showSnackbar("正在获取发音...", "info");
-             
-             // 请求Free Dictionary API
-             const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(currentWord.spelling)}`);
-             
-             if (!response.ok) throw new Error("API请求失败");
-             
-             const data = await response.json();
-             
-             // 查找音频URL (优先查找美式发音)
-             let audioUrl = null;
-             if (data && data.length > 0 && data[0].phonetics) {
-                 // 查找美式发音
-                 const usAudio = data[0].phonetics.find(p => 
-                     p.audio && p.audio.length > 0 && (p.locale === 'us' || p.audio.includes('us'))
-                 );
-                 // 找不到美式发音就用任何可用的发音
-                 const anyAudio = data[0].phonetics.find(p => p.audio && p.audio.length > 0);
-                 
-                 audioUrl = usAudio?.audio || anyAudio?.audio;
-             }
-             
-             if (audioUrl) {
-                 // 播放音频
-                 const audio = new Audio(audioUrl);
-                 audio.onerror = () => {
-                     throw new Error("音频加载失败");
-                 };
-                 await audio.play();
-                 showSnackbar("正在播放发音", "success");
-                 return; // 成功播放，退出函数
-             } else {
-                 throw new Error("未找到发音音频");
-             }
-         } catch (err) {
-             console.error("API发音获取失败:", err);
-             // API失败，回退到Web Speech API
-             fallbackSpeech();
-         }
-     };
-     
-     // 使用Web Speech API作为备选方案
-     const fallbackSpeech = () => {
-         if (currentWord && 'speechSynthesis' in window) {
-             try {
-                const utterance = new SpeechSynthesisUtterance(currentWord.spelling);
-                utterance.lang = 'en-US';
-                utterance.rate = 0.8; // 稍微放慢语速以便更清晰
-                window.speechSynthesis.cancel(); // 取消之前的发音
-                window.speechSynthesis.speak(utterance);
-                showSnackbar("使用本地合成播放发音", "info");
-             } catch (e) {
-                 console.error("语音合成错误:", e);
-                 showSnackbar("无法播放发音", "error");
-             }
-         } else {
-             showSnackbar("浏览器不支持语音合成", "error");
-         }
-     };
-
-    // 前进到下一个单词 (修改: 重置拼写状态)
-    const goToNextWord = () => {
-        if (currentWordIndex < wordsToLearn.length - 1) {
-            setCurrentWordIndex(currentWordIndex + 1);
-            setIsRevealed(false);
-            setSpellingInput(''); // 清空拼写输入
-            setFeedback({ show: false, correct: false, message: '' }); // 清除反馈
-            setError(''); // 清除通用错误
-             // 切换后聚焦 (如果模式是 spelling)
-             if (learningMode === 'spelling') {
-                  setTimeout(() => spellingInputRef.current?.focus(), 0);
-              }
-        } else {
-            alert("恭喜！本轮学习完成！");
-            navigate('/wordbooks');
-        }
-    };
-
-    const recordAndProceed = async (action) => {
-        if (!currentWord || isSubmitting) return;
-        setIsSubmitting(true); setError('');
-        try {
-            await apiFetch('/api/learning/record', {
-                method: 'POST',
-                body: JSON.stringify({ wordId: currentWord._id, action: action })
-            });
-            goToNextWord(); // 记录成功后前进
-        } catch (err) { setError(`记录学习数据时出错: ${err.message}`); }
-        finally { setIsSubmitting(false); }
-    };
+  const recordAndProceed = async (action) => {
+      if (!currentWord || isSubmitting) return;
+      setIsSubmitting(true); setError('');
+      try {
+          await apiFetch('/api/learning/record', {
+              method: 'POST',
+              body: JSON.stringify({ wordId: currentWord._id, action: action })
+          });
+          goToNextWord();
+      } catch (err) { setError(`记录学习数据时出错: ${err.message}`); }
+      finally { setIsSubmitting(false); }
+  };
+  
+  const progressPercentage = wordsToLearn.length > 0 
+      ? Math.round(((currentWordIndex) / wordsToLearn.length) * 100) 
+      : 0;
   
   if (loading) {
-        return ( <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><CircularProgress /></Box> );
-    }
-     // 如果有错误，显示错误信息
-     if (error) {
-         return ( <Container maxWidth="sm"><Alert severity="error" sx={{ mt: 4 }}>{error}<Button onClick={() => navigate('/wordbooks')} sx={{ ml: 2 }}>返回列表</Button></Alert></Container> );
-     }
-     // 如果加载完毕、没有错误，但没有单词（例如已完成或单词书为空）
-     if (!currentWord && !loading && !error) {
-         return (
-             <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 8 }}>
-                 <Typography variant="h5" gutterBottom>{sessionTitle}</Typography>
-                 <Typography>当前没有需要学习或复习的单词了！</Typography>
-                 <Button variant="contained" onClick={() => navigate('/wordbooks')} sx={{ mt: 3 }}>返回我的单词书</Button>
-             </Container>
-         );
-     }
+      return (
+          <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 8 }}>
+              <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  height: '60vh'
+              }}>
+                  <Typography variant="h6" sx={{ mb: 3, color: 'text.secondary' }}>
+                      正在准备您的学习会话...
+                  </Typography>
+                  <CircularProgress />
+              </Box>
+          </Container>
+      );
+  }
+  
+  if (error) {
+      return (
+          <Container maxWidth="sm">
+              <Paper 
+                  elevation={0} 
+                  className="card-glass"
+                  sx={{ 
+                      mt: 4, 
+                      p: 3, 
+                      borderRadius: '16px',
+                      textAlign: 'center'
+                  }}
+              >
+                  <Alert 
+                      severity="error" 
+                      sx={{ mb: 3 }}
+                      variant="outlined"
+                  >
+                      {error}
+                  </Alert>
+                  <Button 
+                      variant="contained" 
+                      onClick={() => navigate('/wordbooks')}
+                      sx={{
+                          background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                          borderRadius: '30px',
+                          px: 4,
+                          py: 1.2
+                      }}
+                  >
+                      返回单词书列表
+                  </Button>
+              </Paper>
+          </Container>
+      );
+  }
+  
+  if (!currentWord && !loading && !error) {
+      return (
+          <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 8 }}>
+              <Grow in={true} timeout={800}>
+                  <Paper 
+                      elevation={0} 
+                      className="card-glass"
+                      sx={{ 
+                          p: 4, 
+                          borderRadius: '16px',
+                          textAlign: 'center'
+                      }}
+                  >
+                      <Box sx={{
+                          width: '80px',
+                          height: '80px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(139, 195, 74, 0.2))',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          mx: 'auto',
+                          mb: 2
+                      }}>
+                          <CheckCircleIcon fontSize="large" sx={{ color: '#4CAF50' }} />
+                      </Box>
+                      <Typography variant="h5" gutterBottom className="gradient-text" sx={{ fontWeight: 'bold' }}>
+                          {sessionTitle}
+                      </Typography>
+                      <Typography sx={{ mb: 3, color: 'text.secondary' }}>
+                          当前没有需要学习或复习的单词了！
+                      </Typography>
+                      <Button 
+                          variant="contained" 
+                          onClick={() => navigate('/wordbooks')}
+                          sx={{
+                              background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                              borderRadius: '30px',
+                              px: 4,
+                              py: 1.5,
+                              fontWeight: 'bold',
+                              boxShadow: '0 4px 15px rgba(71, 118, 230, 0.3)',
+                              '&:hover': {
+                                  transform: 'translateY(-3px)',
+                                  boxShadow: '0 8px 25px rgba(71, 118, 230, 0.5)',
+                              },
+                          }}
+                      >
+                          返回我的单词书
+                      </Button>
+                  </Paper>
+              </Grow>
+          </Container>
+      );
+  }
 
   return (
-        <Container maxWidth="sm">
-            <Typography variant="h5" gutterBottom align="center" sx={{ mt: 2 }}>
-                {sessionTitle} ({currentWordIndex + 1} / {wordsToLearn.length})
-            </Typography>
+      <Container maxWidth="sm" className="animate-fade-in">
+          <Box sx={{ mt: 4, mb: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, px: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                      进度: {currentWordIndex + 1} / {wordsToLearn.length}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                      {progressPercentage}%
+                  </Typography>
+              </Box>
+              <LinearProgress 
+                  variant="determinate" 
+                  value={progressPercentage} 
+                  sx={{
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: 'rgba(71, 118, 230, 0.1)',
+                      '& .MuiLinearProgress-bar': {
+                          borderRadius: 4,
+                          background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                      }
+                  }}
+              />
+          </Box>
 
-            {/* --- V 新增: 模式切换按钮 --- V */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                <ToggleButtonGroup
-                    color="primary"
-                    value={learningMode}
-                    exclusive // 一次只能选一个
-                    onChange={handleModeChange}
-                    aria-label="Learning Mode"
-                    size="small"
-                >
-                    <ToggleButton value="flashcard">看卡认词</ToggleButton>
-                    <ToggleButton value="spelling">拼写单词</ToggleButton>
-                    {/* 可以添加更多模式按钮 */}
-                </ToggleButtonGroup>
-            </Box>
-            {/* --- ^ 新增结束 ^ --- */}
+          <Typography 
+              variant="h5" 
+              align="center" 
+              sx={{ 
+                  mb: 3,
+                  fontWeight: 'bold',
+                  background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent'
+              }}
+              className="gradient-text"
+          >
+              {sessionTitle}
+          </Typography>
 
-            {currentWord && (
-                <Card variant="outlined" sx={{ mt: 1, position: 'relative' }}>
-                    {/* 状态 Chip (不变) */}
-                    {currentWord.status && (<Chip label={currentWord.status} size="small" color={getStatusColor(currentWord.status)} sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}/> )}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+              <Paper 
+                  elevation={0}
+                  sx={{ 
+                      borderRadius: '30px',
+                      overflow: 'hidden',
+                      padding: '3px',
+                      background: 'rgba(255, 255, 255, 0.5)',
+                      backdropFilter: 'blur(10px)'
+                  }}
+              >
+                  <ToggleButtonGroup
+                      color="primary"
+                      value={learningMode}
+                      exclusive
+                      onChange={handleModeChange}
+                      aria-label="学习模式"
+                  >
+                      <ToggleButton 
+                          value="flashcard"
+                          sx={{
+                              borderRadius: '25px',
+                              px: 3,
+                              py: 1,
+                              border: 'none',
+                              '&.Mui-selected': {
+                                  background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                  color: 'white',
+                                  boxShadow: '0 4px 10px rgba(71, 118, 230, 0.3)'
+                              }
+                          }}
+                      >
+                          看卡认词
+                      </ToggleButton>
+                      <ToggleButton 
+                          value="spelling"
+                          sx={{
+                              borderRadius: '25px',
+                              px: 3,
+                              py: 1,
+                              border: 'none',
+                              ml: 1,
+                              '&.Mui-selected': {
+                                  background: 'linear-gradient(90deg, #8E54E9, #4776E6)',
+                                  color: 'white',
+                                  boxShadow: '0 4px 10px rgba(142, 84, 233, 0.3)'
+                              }
+                          }}
+                      >
+                          拼写单词
+                      </ToggleButton>
+                  </ToggleButtonGroup>
+              </Paper>
+          </Box>
 
-                    <IconButton
-                         onClick={handleToggleNotebook}
-                         disabled={loadingNotebookStatus || isSubmitting} // 加载状态或提交中禁用
-                         color={isWordInNotebook ? "primary" : "default"} // 在生词本中则高亮
-                         sx={{ position: 'absolute', top: 8, left: 8, zIndex: 1 }} // 定位到左上角
-                         title={isWordInNotebook ? "从生词本移除" : "添加到生词本"}
-                    >
-                         {isWordInNotebook ? <StarIcon /> : <StarBorderIcon />}
-                     </IconButton>
-                    {/* --- V 修改: 根据模式渲染不同内容 --- V */}
-                    {learningMode === 'flashcard' ? (
-                        // --- Flashcard 模式 ---
-                        <Box onClick={handleCardClick} sx={{ cursor: 'pointer' }}>
-                            <CardContent sx={{ minHeight: 200, display: 'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', textAlign: 'center' }}>
-                                <Typography variant="h3" component="div" sx={{ mb: 1.5 }}>
-                                    {currentWord.spelling}
-                                    {/* 发音按钮 */}
-                                    <IconButton onClick={(e) => { e.stopPropagation(); playAudio(); }} size="small" sx={{ ml: 1 }} title="播放发音">
-                                         <span role="img" aria-label="play audio">🔊</span>
-                                        {/* <VolumeUpIcon fontSize="inherit" /> */}
-                                    </IconButton>
-                                </Typography>
-                                <Collapse in={isRevealed} timeout="auto" unmountOnExit>
-                                    {currentWord.phonetic && (<Typography sx={{ mb: 1, mt: 1 }} color="text.secondary"> [{currentWord.phonetic}] </Typography> )}
-                                    <Typography variant="body1" sx={{mt:2}}> {currentWord.meaning} </Typography>
-                                    {currentWord.examples && currentWord.examples.length > 0 && (<Typography variant="body2" sx={{mt:1, fontStyle:'italic'}}> 例: {currentWord.examples[0].sentence} </Typography> )}
-                                </Collapse>
-                                {!isRevealed && ( <Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}> (点击卡片查看详情) </Typography> )}
-                            </CardContent>
-                        </Box>
-                    ) : (
-                        // --- Spelling 模式 ---
-                        <CardContent sx={{ minHeight: 200, display: 'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', textAlign: 'center' }}>
-                             {/* 显示释义和音标 */}
-                            <Typography variant="h6" sx={{ mb: 1 }}>{currentWord.meaning}</Typography>
-                            {currentWord.phonetic && (
-                                <Typography sx={{ mb: 2 }} color="text.secondary">
-                                    [{currentWord.phonetic}]
-                                     {/* 发音按钮 */}
-                                     <IconButton onClick={playAudio} size="small" sx={{ ml: 1 }} title="播放发音">
-                                         <span role="img" aria-label="play audio">🔊</span>
-                                         {/* <VolumeUpIcon fontSize="inherit" /> */}
-                                     </IconButton>
-                                </Typography>
-                            )}
-                            {/* 拼写输入框 */}
-                            <TextField
-                                inputRef={spellingInputRef} // 关联 ref
-                                variant="outlined"
-                                size="small"
-                                value={spellingInput}
-                                onChange={(e) => setSpellingInput(e.target.value)}
-                                onKeyPress={handleSpellingKeyPress} // 处理回车
-                                placeholder="输入单词拼写"
-                                sx={{ mb: 2, width: '80%' }}
-                                disabled={feedback.show || isSubmitting} // 显示反馈或提交中时禁用
-                                // 根据反馈显示错误或成功状态
-                                error={feedback.show && !feedback.correct}
-                                // success={feedback.show && feedback.correct} // MUI TextField 没有 success prop，可以通过 helperText 或边框颜色模拟
-                                InputProps={{
-                                     sx: {
-                                        ...(feedback.show && feedback.correct && { '& .MuiOutlinedInput-notchedOutline': { borderColor: 'success.main' } }),
-                                    }
-                                }}
-                            />
-                             {/* 检查按钮 */}
-                            <Button
-                                variant="contained"
-                                onClick={handleCheckSpelling}
-                                disabled={feedback.show || isSubmitting || !spellingInput.trim()} // 没输入也不能点
-                            >
-                                检查答案
-                            </Button>
-                             {/* 拼写反馈 */}
-                             <Collapse in={feedback.show} sx={{width: '80%', mt: 1}}>
-                                 <Alert severity={feedback.correct ? 'success' : 'error'}>
-                                     {feedback.message}
-                                 </Alert>
-                             </Collapse>
-                        </CardContent>
-                    )}
-                    {/* --- ^ 修改结束 ^ --- */}
+          {currentWord && (
+              <Fade in={true} timeout={500}>
+                  <Card 
+                      elevation={0} 
+                      className="card-neumorphic" 
+                      sx={{ 
+                          borderRadius: '16px',
+                          position: 'relative',
+                          overflow: 'visible',
+                          transition: 'all 0.3s ease',
+                          '&:hover': {
+                              transform: 'translateY(-5px)',
+                              boxShadow: '0 15px 30px rgba(71, 118, 230, 0.1)'
+                          }
+                      }}
+                  >
+                      {currentWord.status && (
+                          <Chip 
+                              label={currentWord.status} 
+                              size="small" 
+                              color={getStatusColor(currentWord.status)} 
+                              sx={{ 
+                                  position: 'absolute', 
+                                  top: 12, 
+                                  right: 12, 
+                                  zIndex: 1,
+                                  fontWeight: '500',
+                                  boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+                              }}
+                          /> 
+                      )}
 
-                </Card>
-            )}
+                      <Tooltip 
+                          title={isWordInNotebook ? "从生词本移除" : "添加到生词本"}
+                          placement="left"
+                          TransitionComponent={Zoom}
+                      >
+                          <IconButton
+                              onClick={handleToggleNotebook}
+                              disabled={loadingNotebookStatus || isSubmitting}
+                              color={isWordInNotebook ? "primary" : "default"}
+                              sx={{ 
+                                  position: 'absolute', 
+                                  top: 8, 
+                                  left: 8, 
+                                  zIndex: 1,
+                                  background: isWordInNotebook ? 'rgba(71, 118, 230, 0.1)' : 'transparent',
+                                  transition: 'all 0.2s ease',
+                                  '&:hover': {
+                                      background: isWordInNotebook ? 'rgba(71, 118, 230, 0.2)' : 'rgba(0, 0, 0, 0.04)'
+                                  }
+                              }}
+                          >
+                              {isWordInNotebook ? <StarIcon /> : <StarBorderIcon />}
+                          </IconButton>
+                      </Tooltip>
 
-             {/* 通用错误区域 */}
-            {error && !feedback.show && <Alert severity="warning" sx={{ mt: 2 }}>{error}</Alert>}
+                      {learningMode === 'flashcard' ? (
+                          <Box 
+                              onClick={handleCardClick} 
+                              sx={{ 
+                                  cursor: 'pointer',
+                                  position: 'relative',
+                                  minHeight: 280,
+                                  padding: 3,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                  textAlign: 'center',
+                              }}
+                          >
+                              <CardContent>
+                                  <Typography 
+                                      variant="h3" 
+                                      component="div" 
+                                      sx={{ 
+                                          mb: 2,
+                                          fontWeight: 'bold',
+                                          color: '#333'
+                                      }}
+                                  >
+                                      {currentWord.spelling}
+                                      <Tooltip title="播放发音" placement="top">
+                                          <IconButton 
+                                              onClick={(e) => { 
+                                                  e.stopPropagation(); 
+                                                  playAudio(); 
+                                              }} 
+                                              color="primary"
+                                              disabled={playingAudio}
+                                              size="small" 
+                                              sx={{ 
+                                                  ml: 1.5,
+                                                  animation: playingAudio ? 'pulse 1s infinite' : 'none'
+                                              }}
+                                          >
+                                              <VolumeUpIcon />
+                                          </IconButton>
+                                      </Tooltip>
+                                  </Typography>
 
+                                  <Collapse in={isRevealed} timeout={500}>
+                                      <Box 
+                                          sx={{ 
+                                              py: 2, 
+                                              px: 3, 
+                                              mt: 2, 
+                                              borderRadius: '12px',
+                                              background: 'rgba(142, 84, 233, 0.05)',
+                                              border: '1px dashed rgba(142, 84, 233, 0.2)'
+                                          }}
+                                      >
+                                          {currentWord.phonetic && (
+                                              <Typography 
+                                                  sx={{ mb: 1.5 }} 
+                                                  color="text.secondary"
+                                                  fontStyle="italic"
+                                              > 
+                                                  [{currentWord.phonetic}] 
+                                              </Typography> 
+                                          )}
+                                          
+                                          <Typography 
+                                              variant="h6" 
+                                              sx={{
+                                                  fontWeight: '500',
+                                                  mb: 2
+                                              }}
+                                          > 
+                                              {currentWord.meaning} 
+                                          </Typography>
+                                          
+                                          {currentWord.examples && currentWord.examples.length > 0 && (
+                                              <Typography 
+                                                  variant="body1" 
+                                                  sx={{
+                                                      fontStyle: 'italic',
+                                                      color: 'text.secondary',
+                                                      borderLeft: '3px solid rgba(142, 84, 233, 0.3)',
+                                                      pl: 2,
+                                                      py: 0.5
+                                                  }}
+                                              > 
+                                                  {currentWord.examples[0].sentence} 
+                                              </Typography> 
+                                          )}
+                                      </Box>
+                                  </Collapse>
 
-            {/* --- V 修改: 根据模式显示不同按钮 --- V */}
-            {learningMode === 'flashcard' ? (
-                // Flashcard 模式下的按钮
-                <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 3 }}>
-                    <Button variant="contained" color="error" onClick={() => recordAndProceed('dont_know')} disabled={isSubmitting || !currentWord} sx={{ flexGrow: 1, paddingY: 1.5 }}> 不认识 </Button>
-                    <Button variant="contained" color="success" onClick={() => recordAndProceed('know')} disabled={isSubmitting || !currentWord} sx={{ flexGrow: 1, paddingY: 1.5 }}> 认识 </Button>
-                </Stack>
-            ) : (
-                 // Spelling 模式下不需要额外的 "认识/不认识" 按钮, 交互由 "检查答案" 驱动
-                 // 可以保留一个“跳过”按钮？或者其他辅助按钮？
-                 null // 暂时不显示额外按钮
-            )}
-            {/* --- ^ 修改结束 ^ --- */}
+                                  {!isRevealed && (
+                                      <Box 
+                                          sx={{ 
+                                              mt: 3, 
+                                              display: 'flex', 
+                                              alignItems: 'center',
+                                              justifyContent: 'center'
+                                          }}
+                                      >
+                                          <HelpOutlineIcon sx={{ mr: 1, color: 'text.secondary', fontSize: '1.2rem' }} />
+                                          <Typography variant="body2" color="text.secondary">
+                                              点击卡片查看详细释义
+                                          </Typography>
+                                      </Box>
+                                  )}
+                              </CardContent>
+                          </Box>
+                      ) : (
+                          <CardContent sx={{ 
+                              minHeight: 280, 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              justifyContent: 'center',
+                              alignItems: 'center', 
+                              textAlign: 'center',
+                              p: 4
+                          }}>
+                              <Typography 
+                                  variant="h5" 
+                                  sx={{ 
+                                      mb: 1.5,
+                                      fontWeight: 'bold',
+                                      color: '#333'
+                                  }}
+                              >
+                                  {currentWord.meaning}
+                              </Typography>
+                              
+                              {currentWord.phonetic && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                                      <Typography 
+                                          color="text.secondary"
+                                          fontStyle="italic"
+                                      >
+                                          [{currentWord.phonetic}]
+                                      </Typography>
+                                      
+                                      <Tooltip title="播放发音" placement="top">
+                                          <IconButton 
+                                              onClick={playAudio}
+                                              color="primary"
+                                              disabled={playingAudio}
+                                              size="small" 
+                                              sx={{ 
+                                                  ml: 1,
+                                                  animation: playingAudio ? 'pulse 1s infinite' : 'none'
+                                              }}
+                                          >
+                                              <VolumeUpIcon />
+                                          </IconButton>
+                                      </Tooltip>
+                                  </Box>
+                              )}
+                              
+                              <TextField
+                                  inputRef={spellingInputRef}
+                                  variant="outlined"
+                                  size="medium"
+                                  value={spellingInput}
+                                  onChange={(e) => setSpellingInput(e.target.value)}
+                                  onKeyPress={handleSpellingKeyPress}
+                                  placeholder="输入单词拼写"
+                                  sx={{ 
+                                      mb: 3, 
+                                      width: '90%',
+                                      '& .MuiOutlinedInput-root': {
+                                          borderRadius: '12px',
+                                          '&.Mui-focused': {
+                                              '& fieldset': {
+                                                  borderColor: '#4776E6',
+                                                  borderWidth: '2px'
+                                              }
+                                          }
+                                      }
+                                  }}
+                                  disabled={feedback.show || isSubmitting}
+                                  error={feedback.show && !feedback.correct}
+                                  InputProps={{
+                                      sx: {
+                                          ...(feedback.show && feedback.correct && { 
+                                              '& .MuiOutlinedInput-notchedOutline': { 
+                                                  borderColor: '#4CAF50',
+                                                  borderWidth: '2px'
+                                              } 
+                                          }),
+                                      }
+                                  }}
+                              />
+                              
+                              <Button
+                                  variant="contained"
+                                  onClick={handleCheckSpelling}
+                                  disabled={feedback.show || isSubmitting || !spellingInput.trim()}
+                                  sx={{
+                                      borderRadius: '30px',
+                                      px: 4,
+                                      py: 1.2,
+                                      background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                      fontWeight: 'bold',
+                                      boxShadow: '0 4px 15px rgba(71, 118, 230, 0.3)',
+                                      '&:hover': {
+                                          transform: 'translateY(-2px)',
+                                          boxShadow: '0 6px 20px rgba(71, 118, 230, 0.4)',
+                                      },
+                                      '&.Mui-disabled': {
+                                          background: '#e0e0e0',
+                                          boxShadow: 'none',
+                                          color: '#a0a0a0'
+                                      }
+                                  }}
+                              >
+                                  检查答案
+                              </Button>
+                              
+                              <Collapse in={feedback.show} sx={{ width: '90%', mt: 2 }}>
+                                  <Alert 
+                                      severity={feedback.correct ? 'success' : 'error'}
+                                      icon={feedback.correct ? <CheckCircleIcon fontSize="inherit" /> : <CancelIcon fontSize="inherit" />}
+                                      sx={{
+                                          borderRadius: '12px',
+                                          '&.MuiAlert-standardSuccess': {
+                                              backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                                              color: '#357a38'
+                                          },
+                                          '&.MuiAlert-standardError': {
+                                              backgroundColor: 'rgba(211, 47, 47, 0.1)',
+                                              color: '#c62828'
+                                          }
+                                      }}
+                                  >
+                                      {feedback.message}
+                                  </Alert>
+                              </Collapse>
+                          </CardContent>
+                      )}
+                  </Card>
+              </Fade>
+          )}
 
-        </Container>
-    );
- }
+          {error && !feedback.show && (
+              <Alert 
+                  severity="warning" 
+                  sx={{ 
+                      mt: 2,
+                      borderRadius: '12px' 
+                  }}
+              >
+                  {error}
+              </Alert>
+          )}
 
+          {learningMode === 'flashcard' && (
+              <Stack 
+                  direction="row" 
+                  spacing={2} 
+                  justifyContent="center" 
+                  sx={{ mt: 4 }}
+              >
+                  <Button 
+                      variant="contained" 
+                      color="error" 
+                      onClick={() => recordAndProceed('dont_know')} 
+                      disabled={isSubmitting || !currentWord}
+                      sx={{ 
+                          flexGrow: 1, 
+                          py: 1.5,
+                          px: 2,
+                          borderRadius: '30px',
+                          fontWeight: 'bold',
+                          background: 'linear-gradient(90deg, #FF5252, #FF1744)',
+                          boxShadow: '0 4px 15px rgba(255, 82, 82, 0.3)',
+                          '&:hover': {
+                              background: 'linear-gradient(90deg, #FF1744, #D50000)',
+                              transform: 'translateY(-2px)',
+                              boxShadow: '0 6px 20px rgba(255, 82, 82, 0.4)',
+                          }
+                      }}
+                  > 
+                      不认识 
+                  </Button>
+                  <Button 
+                      variant="contained" 
+                      color="success" 
+                      onClick={() => recordAndProceed('know')} 
+                      disabled={isSubmitting || !currentWord}
+                      sx={{ 
+                          flexGrow: 1, 
+                          py: 1.5,
+                          px: 2,
+                          borderRadius: '30px',
+                          fontWeight: 'bold',
+                          background: 'linear-gradient(90deg, #4CAF50, #43A047)',
+                          boxShadow: '0 4px 15px rgba(76, 175, 80, 0.3)',
+                          '&:hover': {
+                              background: 'linear-gradient(90deg, #43A047, #388E3C)',
+                              transform: 'translateY(-2px)',
+                              boxShadow: '0 6px 20px rgba(76, 175, 80, 0.4)',
+                          }
+                      }}
+                  > 
+                      认识 
+                  </Button>
+              </Stack>
+          )}
 
+          <Snackbar
+              open={snackbarOpen}
+              autoHideDuration={3000}
+              onClose={handleSnackbarClose}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+          >
+              <Alert 
+                  onClose={handleSnackbarClose} 
+                  severity={snackbarSeverity} 
+                  sx={{ 
+                      width: '100%',
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+                  }}
+                  variant="filled"
+              >
+                  {snackbarMessage}
+              </Alert>
+          </Snackbar>
+      </Container>
+  );
+}
 
 export default LearningPage;

@@ -1,357 +1,709 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import apiFetch from '../utils/api';
-import { useAuth } from '../context/AuthContext';
 
-// 引入 MUI 组件
+// MUI组件
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemText from '@mui/material/ListItemText';
-import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
-import IconButton from '@mui/material/IconButton';
 import Button from '@mui/material/Button';
-import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
-import Alert from '@mui/material/Alert';
-// V--- 引入 Dialog 相关组件 ---V
+import TextField from '@mui/material/TextField';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
-import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
-import TextField from '@mui/material/TextField'; // 用于对话框内的表单
-import Snackbar from '@mui/material/Snackbar'; // 引入 Snackbar
-import Radio from '@mui/material/Radio';
-import RadioGroup from '@mui/material/RadioGroup';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Select from '@mui/material/Select';
+import Grid from '@mui/material/Grid';
+import Card from '@mui/material/Card';
+import CardActions from '@mui/material/CardActions';
+import CardContent from '@mui/material/CardContent';
+import CardHeader from '@mui/material/CardHeader';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
+import IconButton from '@mui/material/IconButton';
+import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-// import DeleteIcon from '@mui/icons-material/Delete';
-// import EditIcon from '@mui/icons-material/Edit';
-// import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'; // 确认图标已安装或用 emoji 代替
+import Snackbar from '@mui/material/Snackbar';
+import Fade from '@mui/material/Fade';
+import Grow from '@mui/material/Grow';
+import Tooltip from '@mui/material/Tooltip';
 
-// --- V 定义预设词典列表 (根据你的 seedWords.js 配置) --- V
-const presetDictionaries = [
-    { tag: 'CET4', name: '大学英语四级 T' },
-    { tag: 'CET6', name: '大学英语六级 T' },
-    { tag: 'GaoKao', name: '高考 3500' },
-    { tag: 'KaoYan', name: '考研大纲词汇 2024' },
-    { tag: 'IELTS', name: '雅思核心词汇 (顺序)' },
-    { tag: 'IELTS_Disorder', name: '雅思核心词汇 (乱序)' },
-    { tag: '4000EEW_Meaning', name: '4000 基本英语词汇 (含释义)' },
-    { tag: '4000EEW_Sentence', name: '4000 基本英语词汇 (含例句)' },
-    { tag: '2025KaoYan', name: '2025考研红宝书' },
-    { tag: '2026KaoYan', name: '2026红宝书' },
-    { tag: 'Special', name: '专项词汇' }
-];
+// 图标
+import AddIcon from '@mui/icons-material/Add';
+import BookIcon from '@mui/icons-material/Book';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import SchoolIcon from '@mui/icons-material/School';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import MoodIcon from '@mui/icons-material/Mood';
+import DashboardCustomizeIcon from '@mui/icons-material/DashboardCustomize';
 
 function WordbooksPage() {
     const [wordbooks, setWordbooks] = useState([]);
+    const [openNewDialog, setOpenNewDialog] = useState(false);
+    const [dialogLoading, setDialogLoading] = useState(false);
+    const [newWordbookName, setNewWordbookName] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const { isAuthenticated } = useAuth();
+    const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+    const [selectedWordbook, setSelectedWordbook] = useState(null);
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [editWordbookName, setEditWordbookName] = useState('');
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success'
+    });
+
     const navigate = useNavigate();
 
-    // --- V 新增: 对话框和表单状态 --- V
-    const [openCreateDialog, setOpenCreateDialog] = useState(false);
-    const [newWordbookData, setNewWordbookData] = useState({ name: '', description: '' });
-    const [creationType, setCreationType] = useState('empty'); // 'empty' or 'import'
-    const [selectedDictionaryTag, setSelectedDictionaryTag] = useState(presetDictionaries.length > 0 ? presetDictionaries[0].tag : ''); // 默认选中第一个预设标签
-    const [dialogLoading, setDialogLoading] = useState(false);
-    const [dialogError, setDialogError] = useState('');
-    const [snackbarOpen, setSnackbarOpen] = useState(false);
-    const [snackbarMessage, setSnackbarMessage] = useState('');
-    const [snackbarSeverity, setSnackbarSeverity] = useState('success');
-    // --- ^ 新增结束 ^ ---
-    const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false);
-    const [deletingBookId, setDeletingBookId] = useState(null);
-    const [deleteLoading, setDeleteLoading] = useState(false);
-    
-    // --- 获取单词书列表函数 (不变) ---
-    const fetchWordbooks = useCallback(async () => { /* ... */
-         setLoading(true); setError(''); try { const data = await apiFetch('/api/wordbooks'); setWordbooks(data || []); } catch (err) { setError(`获取单词书列表失败: ${err.message}`); setWordbooks([]); } finally { setLoading(false); }
-     }, []);
-    useEffect(() => { if (isAuthenticated) { fetchWordbooks(); } else { setError("请先登录以查看您的单词书。"); setLoading(false); } }, [isAuthenticated, fetchWordbooks]);
-    const showSnackbar = (message, severity = 'success') => { setSnackbarMessage(message); setSnackbarSeverity(severity); setSnackbarOpen(true); };
-    const handleSnackbarClose = (event, reason) => { if (reason === 'clickaway') { return; } setSnackbarOpen(false); };
+    // 获取单词书
+    useEffect(() => {
+        const fetchWordbooks = async () => {
+            setLoading(true);
+            try {
+                const data = await apiFetch('/api/wordbooks');
+                setWordbooks(data || []);
+            } catch (err) {
+                setError(`获取单词书失败: ${err.message}`);
+            } finally {
+                setLoading(false);
+            }
+        };
 
+        fetchWordbooks();
+    }, []);
 
-    const handleOpenCreateDialog = () => {
-        setNewWordbookData({ name: '', description: '' });
-        setCreationType('empty'); // 默认创建空
-        setSelectedDictionaryTag(presetDictionaries.length > 0 ? presetDictionaries[0].tag : ''); // 重置选中标签
-        setDialogError('');
-        setOpenCreateDialog(true);
+    // 处理新建单词书对话框
+    const handleOpenNewDialog = () => {
+        setNewWordbookName('');
+        setOpenNewDialog(true);
     };
-    const handleCloseCreateDialog = () => { setOpenCreateDialog(false); };
-    const handleNewWordbookChange = (e) => { setNewWordbookData({ ...newWordbookData, [e.target.name]: e.target.value }); if (dialogError && e.target.name === 'name') { setDialogError(''); } };
 
-    // --- V 新增: 处理创建类型和预设词典选择变化 --- V
-    const handleCreationTypeChange = (event) => {
-        setCreationType(event.target.value);
-        setDialogError(''); // 切换类型时清除错误
+    const handleCloseNewDialog = () => {
+        setOpenNewDialog(false);
     };
-    const handleDictionaryTagChange = (event) => {
-        setSelectedDictionaryTag(event.target.value);
-        // (可选) 自动填充名称为选中的词典名称
-        // const selectedDict = presetDictionaries.find(d => d.tag === event.target.value);
-        // if (selectedDict) {
-        //    setNewWordbookData(prev => ({...prev, name: selectedDict.name}));
-        // }
-    };
-    
-    // 处理创建单词书的表单提交
-    const handleCreateSubmit = async () => {
-        if (!newWordbookData.name.trim()) {
-            setDialogError('单词书名称不能为空');
+
+    // 创建新单词书
+    const handleCreateWordbook = async () => {
+        if (!newWordbookName.trim()) {
+            showSnackbar('单词书名称不能为空', 'error');
             return;
         }
-        if (creationType === 'import' && !selectedDictionaryTag) {
-             setDialogError('请选择要导入的预设词典');
-             return;
-         }
 
         setDialogLoading(true);
-        setDialogError('');
-
         try {
-            let createdWordbook;
-            if (creationType === 'import') {
-                // 调用导入 API
-                createdWordbook = await apiFetch('/api/wordbooks/import', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                         dictionaryTag: selectedDictionaryTag,
-                         name: newWordbookData.name,
-                         description: newWordbookData.description
-                    })
-                });
-                 showSnackbar(`从 "${presetDictionaries.find(d => d.tag === selectedDictionaryTag)?.name || selectedDictionaryTag}" 导入 "${createdWordbook.name}" 成功!`, 'success');
-            } else {
-                // 调用创建空单词书 API
-                createdWordbook = await apiFetch('/api/wordbooks', {
-                    method: 'POST',
-                    body: JSON.stringify(newWordbookData) // 只发送 name 和 description
-                });
-                 showSnackbar(`单词书 "${createdWordbook.name}" 创建成功!`, 'success');
-            }
-            handleCloseCreateDialog();
-            fetchWordbooks(); // 刷新列表
+            const data = await apiFetch('/api/wordbooks', {
+                method: 'POST',
+                body: JSON.stringify({ name: newWordbookName }),
+            });
 
+            // 添加到现有列表
+            setWordbooks([...wordbooks, data]);
+            setOpenNewDialog(false);
+            showSnackbar('单词书创建成功！', 'success');
         } catch (err) {
-            console.error("创建/导入单词书失败:", err);
-            setDialogError(`操作失败: ${err.message}`);
+            showSnackbar(`创建单词书失败: ${err.message}`, 'error');
         } finally {
             setDialogLoading(false);
         }
     };
 
-    // 打开删除确认对话框
-    const handleOpenDeleteConfirm = (id) => {
-        setDeletingBookId(id);
-        setOpenDeleteConfirm(true);
+    // 开始学习
+    const handleStartLearning = (wordbookId) => {
+        navigate(`/learn/${wordbookId}`);
     };
 
-    // 关闭删除确认对话框
-    const handleCloseDeleteConfirm = () => {
-        setOpenDeleteConfirm(false);
-        setDeletingBookId(null); // 清除 ID
+    // 查看单词书详情
+    const handleViewDetail = (wordbookId) => {
+        navigate(`/wordbooks/${wordbookId}`);
     };
 
-    // 处理确认删除
-    const handleConfirmDelete = async () => {
-        if (!deletingBookId) return;
-        setDeleteLoading(true); // 开始删除，设置 loading
-        try {
-            const response = await apiFetch(`/api/wordbooks/${deletingBookId}`, { method: 'DELETE' });
-            showSnackbar(response.msg || '单词书删除成功！', 'success');
-            fetchWordbooks(); // 删除成功后刷新列表
-            handleCloseDeleteConfirm(); // 关闭确认对话框
-        } catch (err) {
-            console.error(`删除单词书 ${deletingBookId} 失败:`, err);
-            showSnackbar(`删除失败: ${err.message}`, 'error');
-            // 可以选择不关闭对话框，让用户重试
-        } finally {
-            setDeleteLoading(false); // 结束删除 loading
+    // 菜单相关
+    const handleOpenMenu = (event, wordbook) => {
+        setMenuAnchorEl(event.currentTarget);
+        setSelectedWordbook(wordbook);
+    };
+
+    const handleCloseMenu = () => {
+        setMenuAnchorEl(null);
+        setSelectedWordbook(null);
+    };
+
+    // 编辑单词书
+    const handleOpenEditDialog = () => {
+        if (selectedWordbook) {
+            setEditWordbookName(selectedWordbook.name);
+            setEditDialogOpen(true);
+            handleCloseMenu();
         }
     };
-    const handleStartLearning = (wordbookId, wordCount) => { /* ... (不变) ... */
-        if (wordCount === 0) {
-            showSnackbar("这个单词书里还没有单词，请先添加单词。", "warning");
+
+    const handleCloseEditDialog = () => {
+        setEditDialogOpen(false);
+    };
+
+    const handleUpdateWordbook = async () => {
+        if (!editWordbookName.trim()) {
+            showSnackbar('单词书名称不能为空', 'error');
             return;
         }
-        const defaultNewLimit = 10;
-        const defaultReviewLimit = 30;
-        navigate(`/learn/${wordbookId}?newLimit=${defaultNewLimit}&reviewLimit=${defaultReviewLimit}`);
+
+        setDialogLoading(true);
+        try {
+            await apiFetch(`/api/wordbooks/${selectedWordbook._id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ name: editWordbookName }),
+            });
+
+            // 更新列表
+            setWordbooks(wordbooks.map(wb => 
+                wb._id === selectedWordbook._id ? { ...wb, name: editWordbookName } : wb
+            ));
+            setEditDialogOpen(false);
+            showSnackbar('单词书更新成功！', 'success');
+        } catch (err) {
+            showSnackbar(`更新单词书失败: ${err.message}`, 'error');
+        } finally {
+            setDialogLoading(false);
+        }
     };
 
+    // 删除单词书
+    const handleDeleteWordbook = async () => {
+        if (!window.confirm(`确定要删除单词书 "${selectedWordbook.name}" 吗？`)) {
+            handleCloseMenu();
+            return;
+        }
 
-    if (loading && !openCreateDialog) { /* ... loading JSX ... */ // 仅在主列表加载时显示全局 loading
-         return (
-             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                 <CircularProgress />
-             </Box>
-         );
-     }
+        try {
+            await apiFetch(`/api/wordbooks/${selectedWordbook._id}`, {
+                method: 'DELETE',
+            });
+            
+            // 从列表中移除
+            setWordbooks(wordbooks.filter(wb => wb._id !== selectedWordbook._id));
+            showSnackbar('单词书删除成功！', 'success');
+        } catch (err) {
+            showSnackbar(`删除单词书失败: ${err.message}`, 'error');
+        } finally {
+            handleCloseMenu();
+        }
+    };
 
+    // 显示Snackbar通知
+    const showSnackbar = (message, severity) => {
+        setSnackbar({
+            open: true,
+            message,
+            severity
+        });
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbar({
+            ...snackbar,
+            open: false
+        });
+    };
 
     return (
-        <Container maxWidth="md">
-            {/* ... (标题和创建按钮 JSX， 点击改为 handleOpenCreateDialog ) ... */}
-             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}> <Typography component="h1" variant="h4"> 我的单词书 </Typography> <Button variant="contained" onClick={handleOpenCreateDialog}> 创建新单词书 </Button> </Box>
+        <Container maxWidth="lg" className="animate-fade-in">
+            <Box sx={{ 
+                mt: 4, 
+                mb: 6, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 2
+            }}>
+                <Typography 
+                    component="h1" 
+                    variant="h4" 
+                    className="gradient-text"
+                    sx={{ 
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center'
+                    }}
+                >
+                    <BookIcon sx={{ mr: 2, fontSize: '2rem' }} />
+                    我的单词书
+                </Typography>
+                <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={handleOpenNewDialog}
+                    sx={{
+                        borderRadius: '50px',
+                        py: 1.3,
+                        px: 3,
+                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                        boxShadow: '0 8px 16px rgba(71, 118, 230, 0.3)',
+                        fontWeight: 'bold',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            boxShadow: '0 12px 20px rgba(71, 118, 230, 0.4)',
+                            transform: 'translateY(-3px)'
+                        },
+                    }}
+                    className="hover-lift"
+                >
+                    新建单词书
+                </Button>
+            </Box>
 
-            {error && <Alert severity="error" sx={{ marginBottom: 2 }}>{error}</Alert>}
-            {/* ... (单词书列表渲染 JSX 不变) ... */}
-            {wordbooks.length === 0 && !loading && !error && (<Typography>你还没有创建任何单词书。</Typography>)}
-            {wordbooks.length > 0 && (
-                 <List>
-                     {wordbooks.map((book) => (
-                          <ListItem
-                                key={book._id}
-                                // V--- 添加以下两行 ---V
-                                component={RouterLink}
-                                to={`/wordbooks/${book._id}`}
-                                // --- ^ 添加结束 ^ ---
-                                sx={{ borderBottom: '1px solid #eee', '&:hover': { backgroundColor: '#f5f5f5', cursor: 'pointer' } }} // 添加 cursor
-                            >
-                              <ListItemText 
-                                primary={book.name}
-                                secondary={
-                                  <>
-                                    {book.description && `${book.description} • `}
-                                    {`${book.words?.length || 0} 个单词`}
-                                  </>
-                                }
-                              />
-                              <ListItemSecondaryAction>
-                                 <IconButton edge="end" aria-label="start learning" onClick={() => handleStartLearning(book._id, book.words?.length || 0)} sx={{ mr: 1 }} title="开始学习">
-                                     <span role="img" aria-label="start learning">▶️</span>
-                                 </IconButton>
-                                 {/* V--- 修改删除按钮 onClick ---V */}
-                                 <IconButton edge="end" aria-label="delete" onClick={() => handleOpenDeleteConfirm(book._id)}>
-                                     <span role="img" aria-label="delete">🗑️</span>
-                                 </IconButton>
-                                 {/* --- ^ 修改结束 ^ --- */}
-                              </ListItemSecondaryAction>
-                          </ListItem>
-                     ))}
-                 </List>
-             )}
-            {/* --- V 修改: 创建对话框内容 --- V */}
-            <Dialog open={openCreateDialog} onClose={handleCloseCreateDialog}>
-                <DialogTitle>创建新单词书</DialogTitle>
-                <DialogContent>
-                    {/* <DialogContentText sx={{ mb: 2 }}>
-                        请选择创建方式并填写信息。
-                    </DialogContentText> */}
-                     {dialogError && <Alert severity="error" sx={{ mb: 2 }}>{dialogError}</Alert>}
+            {/* 加载状态 */}
+            {loading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                    <div className="spinner" />
+                </Box>
+            )}
 
-                    {/* 创建类型选择 */}
-                    <FormControl component="fieldset" sx={{ mb: 2 }}>
-                        {/* <FormLabel component="legend">创建方式</FormLabel> */}
-                        <RadioGroup
-                            row
-                            aria-label="creation-type"
-                            name="creation-type-radio-group"
-                            value={creationType}
-                            onChange={handleCreationTypeChange}
+            {/* 错误信息 */}
+            {error && (
+                <Alert 
+                    severity="error" 
+                    sx={{ 
+                        my: 2,
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(211, 47, 47, 0.1)'
+                    }}
+                >
+                    {error}
+                </Alert>
+            )}
+
+            {/* 没有单词书时显示 */}
+            {!loading && !error && wordbooks.length === 0 && (
+                <Fade in={true} timeout={1000}>
+                    <Box 
+                        className="card-glass" 
+                        sx={{ 
+                            p: 5, 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            alignItems: 'center',
+                            borderRadius: '20px',
+                            my: 4,
+                            textAlign: 'center'
+                        }}
+                    >
+                        <MoodIcon sx={{ fontSize: '4rem', color: '#8E54E9', mb: 2 }} />
+                        <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                            你还没有创建任何单词书
+                        </Typography>
+                        <Typography variant="body1" sx={{ mb: 4, color: 'text.secondary' }}>
+                            点击"新建单词书"按钮开始创建自己的单词书，然后从单词列表中添加单词！
+                        </Typography>
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={handleOpenNewDialog}
+                            sx={{
+                                borderRadius: '50px',
+                                py: 1.5,
+                                px: 4,
+                                background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                boxShadow: '0 8px 16px rgba(71, 118, 230, 0.3)',
+                                fontWeight: 'bold',
+                                fontSize: '1rem',
+                                transition: 'all 0.3s ease',
+                                '&:hover': {
+                                    boxShadow: '0 12px 20px rgba(71, 118, 230, 0.4)',
+                                    transform: 'translateY(-3px)'
+                                },
+                            }}
                         >
-                            <FormControlLabel value="empty" control={<Radio />} label="创建空单词书" />
-                            <FormControlLabel value="import" control={<Radio />} label="从预设导入" />
-                        </RadioGroup>
-                    </FormControl>
+                            新建单词书
+                        </Button>
+                    </Box>
+                </Fade>
+            )}
 
-                    {/* 预设词典选择 (仅当类型为 'import' 时显示) */}
-                    {creationType === 'import' && (
-                         <FormControl fullWidth margin="dense" required error={!!dialogError && !selectedDictionaryTag}>
-                             <InputLabel id="preset-dictionary-select-label">选择预设词典</InputLabel>
-                             <Select
-                                 labelId="preset-dictionary-select-label"
-                                 id="preset-dictionary-select"
-                                 value={selectedDictionaryTag}
-                                 label="选择预设词典"
-                                 onChange={handleDictionaryTagChange}
-                             >
-                                 {presetDictionaries.map((dict) => (
-                                     <MenuItem key={dict.tag} value={dict.tag}>{dict.name}</MenuItem>
-                                 ))}
-                             </Select>
-                         </FormControl>
-                    )}
+            {/* 单词书列表 */}
+            {!loading && !error && wordbooks.length > 0 && (
+                <Grid container spacing={3}>
+                    {wordbooks.map((wordbook, index) => (
+                        <Grid item xs={12} sm={6} md={4} key={wordbook._id}>
+                            <Grow 
+                                in={true} 
+                                timeout={(index + 1) * 300}
+                                style={{ transformOrigin: '0 0 0' }}
+                            >
+                                <Card
+                                    elevation={0}
+                                    className="card-neumorphic hover-lift"
+                                    sx={{
+                                        position: 'relative',
+                                        overflow: 'visible',
+                                        borderRadius: '16px',
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        transition: 'all 0.3s ease',
+                                    }}
+                                >
+                                    {/* 装饰条纹 */}
+                                    <Box 
+                                        sx={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            height: '6px',
+                                            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                            borderTopLeftRadius: '16px',
+                                            borderTopRightRadius: '16px',
+                                            opacity: 0.7
+                                        }}
+                                    />
 
+                                    <CardHeader
+                                        title={
+                                            <Typography 
+                                                variant="h6" 
+                                                className="gradient-text" 
+                                                sx={{ 
+                                                    fontWeight: 'bold',
+                                                    display: 'flex',
+                                                    alignItems: 'center'
+                                                }}
+                                            >
+                                                <DashboardCustomizeIcon sx={{ mr: 1 }} />
+                                                {wordbook.name}
+                                            </Typography>
+                                        }
+                                        action={
+                                            <IconButton 
+                                                aria-label="settings" 
+                                                onClick={(e) => handleOpenMenu(e, wordbook)}
+                                            >
+                                                <MoreVertIcon />
+                                            </IconButton>
+                                        }
+                                        sx={{ pt: 3 }}
+                                    />
+                                    <CardContent sx={{ flexGrow: 1, pb: 1 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                总单词数: <strong>{wordbook.wordCount || 0}</strong>
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                已学习: <strong>{wordbook.learnedCount || 0}</strong>
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                已掌握: <strong>{wordbook.masteredCount || 0}</strong>
+                                            </Typography>
+                                        </Box>
+                                        
+                                        <Box 
+                                            sx={{ 
+                                                mt: 2, 
+                                                pt: 2, 
+                                                borderTop: '1px solid rgba(0, 0, 0, 0.08)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between'
+                                            }}
+                                        >
+                                            <Typography 
+                                                variant="body2" 
+                                                color="text.secondary"
+                                                sx={{ 
+                                                    display: 'flex', 
+                                                    alignItems: 'center' 
+                                                }}
+                                            >
+                                                <SchoolIcon 
+                                                    fontSize="small" 
+                                                    sx={{ 
+                                                        mr: 0.5, 
+                                                        color: wordbook.wordCount ? '#4776E6' : 'text.disabled' 
+                                                    }} 
+                                                />
+                                                学习进度:
+                                            </Typography>
+                                            <Box 
+                                                sx={{ 
+                                                    position: 'relative', 
+                                                    width: '60%', 
+                                                    height: '8px', 
+                                                    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                                                    borderRadius: '4px',
+                                                    overflow: 'hidden'
+                                                }}
+                                            >
+                                                <Box 
+                                                    sx={{ 
+                                                        position: 'absolute',
+                                                        top: 0,
+                                                        left: 0,
+                                                        height: '100%',
+                                                        width: `${wordbook.wordCount ? (wordbook.masteredCount / wordbook.wordCount) * 100 : 0}%`,
+                                                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                                        borderRadius: '4px',
+                                                        transition: 'width 1s ease-in-out'
+                                                    }}
+                                                />
+                                            </Box>
+                                        </Box>
+                                    </CardContent>
+                                    
+                                    <CardActions sx={{ p: 2, pt: 0, justifyContent: 'space-between' }}>
+                                        <Button 
+                                            size="small"
+                                            onClick={() => handleViewDetail(wordbook._id)}
+                                            sx={{
+                                                color: '#4776E6',
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(71, 118, 230, 0.08)'
+                                                }
+                                            }}
+                                        >
+                                            查看详情
+                                        </Button>
+                                        <Tooltip title="开始学习">
+                                            <span>
+                                                <Button
+                                                    variant="contained"
+                                                    color="primary"
+                                                    size="small"
+                                                    startIcon={<PlayArrowIcon />}
+                                                    onClick={() => handleStartLearning(wordbook._id)}
+                                                    disabled={wordbook.wordCount === 0}
+                                                    sx={{
+                                                        borderRadius: '20px',
+                                                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                                        boxShadow: '0 4px 12px rgba(71, 118, 230, 0.2)',
+                                                        transition: 'all 0.3s ease',
+                                                        '&:hover': {
+                                                            boxShadow: '0 6px 15px rgba(71, 118, 230, 0.3)',
+                                                            transform: 'translateY(-2px)'
+                                                        },
+                                                        '&:active': {
+                                                            transform: 'translateY(0)'
+                                                        }
+                                                    }}
+                                                >
+                                                    学习
+                                                </Button>
+                                            </span>
+                                        </Tooltip>
+                                    </CardActions>
+                                </Card>
+                            </Grow>
+                        </Grid>
+                    ))}
+                </Grid>
+            )}
 
-                    {/* 单词书名称 (始终需要) */}
+            {/* 新建单词书对话框 */}
+            <Dialog
+                open={openNewDialog}
+                onClose={handleCloseNewDialog}
+                PaperProps={{
+                    sx: {
+                        borderRadius: '16px',
+                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                    },
+                    elevation: 2
+                }}
+            >
+                <DialogTitle 
+                    sx={{ 
+                        background: 'linear-gradient(135deg, #4776E6, #8E54E9)',
+                        color: 'white',
+                        py: 2,
+                    }}
+                >
+                    新建单词书
+                </DialogTitle>
+                <DialogContent sx={{ mt: 2, minWidth: '400px' }}>
                     <TextField
-                        autoFocus={creationType === 'empty'} // 创建空时自动聚焦名称
+                        autoFocus
                         margin="dense"
-                        id="name"
-                        name="name"
                         label="单词书名称"
                         type="text"
                         fullWidth
-                        variant="standard"
-                        value={newWordbookData.name}
-                        onChange={handleNewWordbookChange}
-                        required
-                        error={!!dialogError && !newWordbookData.name.trim()}
+                        value={newWordbookName}
+                        onChange={(e) => setNewWordbookName(e.target.value)}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: '12px',
+                            },
+                            mt: 1
+                        }}
                     />
-                    {/* 描述 (可选) */}
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 3 }}>
+                    <Button 
+                        onClick={handleCloseNewDialog}
+                        sx={{
+                            color: '#4776E6',
+                            borderRadius: '8px',
+                            '&:hover': {
+                                backgroundColor: 'rgba(71, 118, 230, 0.08)'
+                            }
+                        }}
+                    >
+                        取消
+                    </Button>
+                    <Button 
+                        onClick={handleCreateWordbook} 
+                        variant="contained" 
+                        disabled={dialogLoading}
+                        sx={{
+                            borderRadius: '8px',
+                            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                            boxShadow: '0 4px 12px rgba(71, 118, 230, 0.2)',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                boxShadow: '0 6px 15px rgba(71, 118, 230, 0.3)',
+                            }
+                        }}
+                    >
+                        {dialogLoading ? <div className="spinner" style={{ width: 24, height: 24 }} /> : '创建'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* 编辑单词书对话框 */}
+            <Dialog
+                open={editDialogOpen}
+                onClose={handleCloseEditDialog}
+                PaperProps={{
+                    sx: {
+                        borderRadius: '16px',
+                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                    },
+                    elevation: 2
+                }}
+            >
+                <DialogTitle 
+                    sx={{ 
+                        background: 'linear-gradient(135deg, #4776E6, #8E54E9)',
+                        color: 'white',
+                        py: 2,
+                    }}
+                >
+                    编辑单词书
+                </DialogTitle>
+                <DialogContent sx={{ mt: 2, minWidth: '400px' }}>
                     <TextField
+                        autoFocus
                         margin="dense"
-                        id="description"
-                        name="description"
-                        label="描述 (可选)"
+                        label="单词书名称"
                         type="text"
                         fullWidth
-                        variant="standard"
-                        value={newWordbookData.description}
-                        onChange={handleNewWordbookChange}
-                        multiline
-                        rows={2}
+                        value={editWordbookName}
+                        onChange={(e) => setEditWordbookName(e.target.value)}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: '12px',
+                            },
+                            mt: 1
+                        }}
                     />
-
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseCreateDialog} disabled={dialogLoading}>取消</Button>
-                    <Button onClick={handleCreateSubmit} disabled={dialogLoading}>
-                        {dialogLoading ? <CircularProgress size={24} /> : '创建'}
+                <DialogActions sx={{ px: 3, pb: 3 }}>
+                    <Button 
+                        onClick={handleCloseEditDialog}
+                        sx={{
+                            color: '#4776E6',
+                            borderRadius: '8px',
+                            '&:hover': {
+                                backgroundColor: 'rgba(71, 118, 230, 0.08)'
+                            }
+                        }}
+                    >
+                        取消
+                    </Button>
+                    <Button 
+                        onClick={handleUpdateWordbook} 
+                        variant="contained" 
+                        disabled={dialogLoading}
+                        sx={{
+                            borderRadius: '8px',
+                            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                            boxShadow: '0 4px 12px rgba(71, 118, 230, 0.2)',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                boxShadow: '0 6px 15px rgba(71, 118, 230, 0.3)',
+                            }
+                        }}
+                    >
+                        {dialogLoading ? <div className="spinner" style={{ width: 24, height: 24 }} /> : '保存'}
                     </Button>
                 </DialogActions>
             </Dialog>
-            {/* --- ^ 修改结束 ^ --- */}
-            <Dialog
-                open={openDeleteConfirm}
-                onClose={handleCloseDeleteConfirm}
-                aria-labelledby="alert-dialog-title"
-                aria-describedby="alert-dialog-description"
+
+            {/* 菜单 */}
+            <Menu
+                anchorEl={menuAnchorEl}
+                open={Boolean(menuAnchorEl)}
+                onClose={handleCloseMenu}
+                PaperProps={{
+                    sx: { 
+                        borderRadius: '12px', 
+                        boxShadow: '0 8px 20px rgba(0, 0, 0, 0.1)',
+                        overflow: 'hidden'
+                    },
+                    elevation: 2
+                }}
             >
-                <DialogTitle id="alert-dialog-title">
-                    {"确认删除单词书?"}
-                </DialogTitle>
-                <DialogContent>
-                    <DialogContentText id="alert-dialog-description">
-                        删除单词书后，相关的学习记录可能也会丢失（取决于后端实现），确定要删除吗？
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseDeleteConfirm} disabled={deleteLoading}>取消</Button>
-                    <Button onClick={handleConfirmDelete} color="error" autoFocus disabled={deleteLoading}>
-                        {deleteLoading ? <CircularProgress size={24} color="inherit" /> : '确认删除'}
-                    </Button>
-                </DialogActions>
-            </Dialog>
+                <MenuItem 
+                    onClick={handleOpenEditDialog}
+                    sx={{
+                        py: 1.5,
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                            backgroundColor: 'rgba(71, 118, 230, 0.08)',
+                        }
+                    }}
+                >
+                    <EditIcon fontSize="small" sx={{ mr: 1, color: '#4776E6' }} />
+                    编辑
+                </MenuItem>
+                <MenuItem 
+                    onClick={handleDeleteWordbook}
+                    sx={{
+                        py: 1.5,
+                        color: '#f44336',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                            backgroundColor: 'rgba(244, 67, 54, 0.08)',
+                        }
+                    }}
+                >
+                    <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+                    删除
+                </MenuItem>
+            </Menu>
 
-            {/* Snackbar (不变) */}
-             <Snackbar open={snackbarOpen} autoHideDuration={4000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-                 <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
-                     {snackbarMessage}
-                 </Alert>
-             </Snackbar>
-
+            {/* 通知 */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={4000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert 
+                    onClose={handleCloseSnackbar} 
+                    severity={snackbar.severity} 
+                    sx={{ 
+                        borderRadius: '12px',
+                        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)'
+                    }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Container>
     );
 }

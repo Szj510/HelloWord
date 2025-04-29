@@ -25,11 +25,21 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
+import Paper from '@mui/material/Paper';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Fade from '@mui/material/Fade';
+import Zoom from '@mui/material/Zoom';
+import Chip from '@mui/material/Chip';
+import Tooltip from '@mui/material/Tooltip';
 
 // Icons
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'; // 移除图标
-import FileUploadIcon from '@mui/icons-material/FileUpload'; // 导出图标
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 
 function NotebookPage() {
     const [groupedEntries, setGroupedEntries] = useState([]); // 按单词书分组的条目
@@ -128,111 +138,398 @@ function NotebookPage() {
     // --- 导出功能结束 ---
 
 
-    if (loading) { return ( <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box> ); }
-    if (error) { return ( <Container maxWidth="sm"><Alert severity="error" sx={{ mt: 4 }}>{error}</Alert></Container> ); }
+    if (loading) {
+        return (
+            <Container maxWidth="md" sx={{ mt: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }} className="animate-fade-in">
+                <div className="spinner" style={{ width: 60, height: 60 }} />
+                <Typography variant="h6" sx={{ mt: 2, fontWeight: 'medium', color: 'text.secondary' }}>
+                    正在加载生词本...
+                </Typography>
+            </Container>
+        );
+    }
+
+    if (error) {
+        return (
+            <Container maxWidth="sm" className="animate-fade-in">
+                <Alert
+                    severity="error"
+                    sx={{
+                        mt: 4,
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 15px rgba(211, 47, 47, 0.15)'
+                    }}
+                >
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                        {error}
+                    </Typography>
+                </Alert>
+            </Container>
+        );
+    }
 
 
     return (
-        <Container maxWidth="lg">
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', my: 2 }}>
-                <Typography component="h1" variant="h4">
+        <Container maxWidth="lg" className="animate-fade-in">
+            <Box sx={{ mt: 4, mb: 5 }}>
+                <Typography
+                    component="h1"
+                    variant="h4"
+                    sx={{
+                        fontWeight: 'bold',
+                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent'
+                    }}
+                >
+                    <BookmarkIcon sx={{ mr: 1.5, fontSize: '2rem' }} />
                     我的生词本
                 </Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
                 <Button
                     variant="contained"
                     startIcon={<FileUploadIcon />}
                     onClick={handleOpenExportDialog}
-                    disabled={groupedEntries.length === 0} // 如果没有条目则禁用
+                    disabled={groupedEntries.length === 0}
+                    sx={{
+                        borderRadius: '50px',
+                        py: 1,
+                        px: 3,
+                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                        boxShadow: '0 8px 16px rgba(71, 118, 230, 0.3)',
+                        fontWeight: 'bold',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            boxShadow: '0 12px 20px rgba(71, 118, 230, 0.4)',
+                            transform: 'translateY(-3px)'
+                        },
+                    }}
                 >
                     导出为新单词书
                 </Button>
             </Box>
 
             {groupedEntries.length === 0 && !loading && (
-                <Typography color="text.secondary" sx={{ mt: 4, textAlign: 'center' }}>
-                    生词本是空的，在学习过程中点击单词卡片左上角的 ☆ 图标添加生词吧！
-                </Typography>
+                <Fade in={true} timeout={800}>
+                    <Paper
+                        elevation={0}
+                        className="card-glass"
+                        sx={{
+                            p: 5,
+                            borderRadius: '16px',
+                            textAlign: 'center',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 2
+                        }}
+                    >
+                        <BookmarkIcon sx={{ fontSize: '4rem', color: '#8E54E9', opacity: 0.7 }} />
+                        <Typography
+                            variant="h6"
+                            sx={{
+                                fontWeight: 'medium',
+                                color: 'text.secondary'
+                            }}
+                        >
+                            生词本是空的
+                        </Typography>
+                        <Typography
+                            variant="body1"
+                            sx={{
+                                color: 'text.secondary',
+                                maxWidth: '500px'
+                            }}
+                        >
+                            在学习过程中点击单词卡片左上角的 ☆ 图标添加生词吧！
+                        </Typography>
+                    </Paper>
+                </Fade>
             )}
 
             {groupedEntries.map((group, index) => {
                 const accordionId = `panel-${index}-${group.wordbookId || 'unknown'}`;
                 return (
-                <Accordion 
+                <Fade
+                    in={true}
+                    timeout={800 + index * 200}
                     key={accordionId}
-                    defaultExpanded={true}
                 >
-                    <AccordionSummary
-                        expandIcon={<ExpandMoreIcon />}
-                        aria-controls={`${accordionId}-content`}
-                        id={`${accordionId}-header`}
+                    <Accordion
+                        defaultExpanded={true}
+                        elevation={0}
+                        className="card-neumorphic"
+                        sx={{
+                            mb: 3,
+                            borderRadius: '16px',
+                            overflow: 'hidden',
+                            position: 'relative',
+                            '&::before': {
+                                display: 'none' // 移除默认的分隔线
+                            }
+                        }}
                     >
-                        <Typography sx={{ flexShrink: 0, mr: 2 }}>
-                            来源: {group.wordbookName || '未知来源'}
-                        </Typography>
-                        <Typography sx={{ color: 'text.secondary' }}>
-                            ({group.entries?.length || 0} 个单词)
-                        </Typography>
-                    </AccordionSummary>
-                    <AccordionDetails id={`${accordionId}-content`}>
-                        <List dense>
-                            {group.entries?.map((entry) => (
-                                <ListItem
-                                    key={entry.entryId || entry.wordId} // 优先用 entryId
-                                    divider
-                                    secondaryAction={
-                                        <IconButton
-                                            edge="end"
-                                            aria-label="remove from notebook"
-                                            onClick={() => handleRemoveWord(entry.wordId, entry.spelling)}
-                                        >
-                                            <DeleteOutlineIcon fontSize="small" />
-                                        </IconButton>
-                                    }
+                        <AccordionSummary
+                            expandIcon={
+                                <ExpandMoreIcon
+                                    sx={{
+                                        color: '#4776E6',
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                />
+                            }
+                            aria-controls={`${accordionId}-content`}
+                            id={`${accordionId}-header`}
+                            sx={{
+                                background: 'rgba(71, 118, 230, 0.05)',
+                                '&:hover': {
+                                    background: 'rgba(71, 118, 230, 0.1)'
+                                }
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    flexGrow: 1
+                                }}
+                            >
+                                <MenuBookIcon
+                                    sx={{
+                                        mr: 2,
+                                        color: '#4776E6'
+                                    }}
+                                />
+                                <Typography
+                                    sx={{
+                                        flexShrink: 0,
+                                        mr: 2,
+                                        fontWeight: 'bold',
+                                        color: '#4776E6'
+                                    }}
                                 >
-                                    <ListItemText
-                                        primary={entry.spelling}
-                                        secondary={`[${entry.phonetic || 'N/A'}] ${entry.meaning || 'N/A'}`}
-                                    />
-                                </ListItem>
-                            ))}
-                        </List>
-                    </AccordionDetails>
-                </Accordion>
+                                    来源: {group.wordbookName || '未知来源'}
+                                </Typography>
+                                <Chip
+                                    label={`${group.entries?.length || 0} 个单词`}
+                                    size="small"
+                                    sx={{
+                                        borderRadius: '16px',
+                                        background: 'rgba(71, 118, 230, 0.1)',
+                                        color: '#4776E6',
+                                        fontWeight: 'medium'
+                                    }}
+                                />
+                            </Box>
+                        </AccordionSummary>
+                        <AccordionDetails
+                            id={`${accordionId}-content`}
+                            sx={{ p: 0 }}
+                        >
+                            <List sx={{ p: 0 }}>
+                                {group.entries?.map((entry, entryIndex) => (
+                                    <Zoom
+                                        in={true}
+                                        style={{
+                                            transitionDelay: `${entryIndex * 50}ms`,
+                                        }}
+                                        key={entry.entryId || entry.wordId}
+                                    >
+                                        <ListItem
+                                            divider={entryIndex < group.entries.length - 1}
+                                            sx={{
+                                                transition: 'all 0.3s ease',
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(71, 118, 230, 0.05)'
+                                                },
+                                                py: 1.5
+                                            }}
+                                            secondaryAction={
+                                                <Tooltip title="从生词本移除">
+                                                    <IconButton
+                                                        edge="end"
+                                                        aria-label="remove from notebook"
+                                                        onClick={() => handleRemoveWord(entry.wordId, entry.spelling)}
+                                                        sx={{
+                                                            color: '#f44336',
+                                                            '&:hover': {
+                                                                backgroundColor: 'rgba(244, 67, 54, 0.1)'
+                                                            }
+                                                        }}
+                                                    >
+                                                        <DeleteOutlineIcon />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            }
+                                        >
+                                            <ListItemText
+                                                primary={
+                                                    <Typography
+                                                        variant="subtitle1"
+                                                        sx={{
+                                                            fontWeight: 'bold',
+                                                            color: '#4776E6'
+                                                        }}
+                                                    >
+                                                        {entry.spelling}
+                                                    </Typography>
+                                                }
+                                                secondary={
+                                                    <Box sx={{ mt: 0.5 }}>
+                                                        <Typography
+                                                            variant="body2"
+                                                            component="span"
+                                                            sx={{
+                                                                color: '#8E54E9',
+                                                                mr: 1,
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center'
+                                                            }}
+                                                        >
+                                                            [{entry.phonetic || 'N/A'}]
+                                                            <IconButton
+                                                                size="small"
+                                                                sx={{
+                                                                    ml: 0.5,
+                                                                    color: '#8E54E9',
+                                                                    '&:hover': {
+                                                                        backgroundColor: 'rgba(142, 84, 233, 0.1)'
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <VolumeUpIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Typography>
+                                                        <Typography variant="body2" component="span">
+                                                            {entry.meaning || 'N/A'}
+                                                        </Typography>
+                                                    </Box>
+                                                }
+                                            />
+                                        </ListItem>
+                                    </Zoom>
+                                ))}
+                            </List>
+                        </AccordionDetails>
+                    </Accordion>
+                </Fade>
                 );
             })}
 
-             {/* 导出对话框 */}
-             <Dialog open={openExportDialog} onClose={handleCloseExportDialog}>
-                 <DialogTitle>导出生词本</DialogTitle>
-                 <DialogContent>
-                      {exportError && <Alert severity="error" sx={{ mb: 2 }}>{exportError}</Alert>}
-                     <TextField
-                         autoFocus
-                         margin="dense"
-                         id="newWordbookName"
-                         label="新单词书名称"
-                         type="text"
-                         fullWidth
-                         variant="standard"
-                         value={newWordbookName}
-                         onChange={(e) => setNewWordbookName(e.target.value)}
-                         required
-                         error={!!exportError && !newWordbookName.trim()}
-                     />
-                     {/* 可以添加描述输入框 */}
-                 </DialogContent>
-                 <DialogActions>
-                     <Button onClick={handleCloseExportDialog} disabled={exportLoading}>取消</Button>
-                     <Button onClick={handleExportSubmit} disabled={exportLoading}>
-                         {exportLoading ? <CircularProgress size={24} /> : '确认导出'}
-                     </Button>
-                 </DialogActions>
-             </Dialog>
-
+            {/* 导出对话框 */}
+            <Dialog
+                open={openExportDialog}
+                onClose={handleCloseExportDialog}
+                PaperProps={{
+                    sx: {
+                        borderRadius: '16px',
+                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                    },
+                    elevation: 2
+                }}
+            >
+                <DialogTitle
+                    sx={{
+                        background: 'linear-gradient(135deg, #4776E6, #8E54E9)',
+                        color: 'white',
+                        py: 2,
+                    }}
+                >
+                    导出生词本
+                </DialogTitle>
+                <DialogContent sx={{ mt: 2, minWidth: '400px' }}>
+                    {exportError && (
+                        <Alert
+                            severity="error"
+                            sx={{
+                                mb: 2,
+                                borderRadius: '8px'
+                            }}
+                        >
+                            {exportError}
+                        </Alert>
+                    )}
+                    <TextField
+                        autoFocus
+                        margin="dense"
+                        id="newWordbookName"
+                        label="新单词书名称"
+                        type="text"
+                        fullWidth
+                        value={newWordbookName}
+                        onChange={(e) => setNewWordbookName(e.target.value)}
+                        required
+                        error={!!exportError && !newWordbookName.trim()}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: '12px',
+                            },
+                            '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: 'rgba(71, 118, 230, 0.3)'
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: 'rgba(71, 118, 230, 0.5)'
+                            }
+                        }}
+                    />
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 3 }}>
+                    <Button
+                        onClick={handleCloseExportDialog}
+                        disabled={exportLoading}
+                        sx={{
+                            color: '#4776E6',
+                            borderRadius: '8px',
+                            '&:hover': {
+                                backgroundColor: 'rgba(71, 118, 230, 0.08)'
+                            }
+                        }}
+                    >
+                        取消
+                    </Button>
+                    <Button
+                        onClick={handleExportSubmit}
+                        variant="contained"
+                        disabled={exportLoading}
+                        sx={{
+                            borderRadius: '8px',
+                            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                            boxShadow: '0 4px 12px rgba(71, 118, 230, 0.2)',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                boxShadow: '0 6px 15px rgba(71, 118, 230, 0.3)',
+                            }
+                        }}
+                    >
+                        {exportLoading ? <CircularProgress size={24} /> : '确认导出'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             {/* Snackbar */}
-            <Snackbar open={snackbarOpen} autoHideDuration={4000} onClose={handleSnackbarClose} /* ... */ >
-                <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>{snackbarMessage}</Alert>
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={4000}
+                onClose={handleSnackbarClose}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={handleSnackbarClose}
+                    severity={snackbarSeverity}
+                    sx={{
+                        width: '100%',
+                        borderRadius: '12px',
+                        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)'
+                    }}
+                >
+                    {snackbarMessage}
+                </Alert>
             </Snackbar>
         </Container>
     );
