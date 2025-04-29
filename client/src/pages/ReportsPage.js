@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import apiFetch from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { COLOR_SCHEMES } from '../context/ThemeContext';
+import { earthToneColors, blueGrayColors, greenBeigeColors } from '../theme/themeConfig';
 
 // MUI Components
 import Container from '@mui/material/Container';
@@ -20,6 +23,9 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Fade from '@mui/material/Fade';
 import Zoom from '@mui/material/Zoom';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import ToggleButton from '@mui/material/ToggleButton';
+
 // Icons
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -28,12 +34,50 @@ import LightbulbIcon from '@mui/icons-material/Lightbulb';
 import SpeedIcon from '@mui/icons-material/Speed';
 import SchoolIcon from '@mui/icons-material/School';
 import RepeatIcon from '@mui/icons-material/Repeat';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import DateRangeIcon from '@mui/icons-material/DateRange';
+import EventNoteIcon from '@mui/icons-material/EventNote';
+import AllInclusiveIcon from '@mui/icons-material/AllInclusive';
 
 function ReportsPage() {
     const [report, setReport] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [periodType, setPeriodType] = useState('last7days'); // 默认显示近7天数据
     const { isAuthenticated } = useAuth();
+    const { theme, colorScheme } = useTheme();
+    const isDarkMode = theme === 'dark';
+    
+    // 根据当前主题选择配色方案
+    const getThemeColors = () => {
+        switch(colorScheme) {
+            case COLOR_SCHEMES.BLUE_GRAY:
+                return blueGrayColors;
+            case COLOR_SCHEMES.GREEN_BEIGE:
+                return greenBeigeColors;
+            case COLOR_SCHEMES.EARTH_TONE:
+            default:
+                return earthToneColors;
+        }
+    };
+    
+    // 当前主题的颜色
+    const themeColors = getThemeColors();
+
+    // 时间段选项
+    const timeRangeOptions = [
+        { value: 'last7days', label: '近7天', icon: <CalendarTodayIcon /> },
+        { value: 'weekly', label: '上周', icon: <DateRangeIcon /> },
+        { value: 'thisMonth', label: '本月', icon: <EventNoteIcon /> },
+        { value: 'allTime', label: '所有', icon: <AllInclusiveIcon /> }
+    ];
+
+    // 处理时间范围变更
+    const handlePeriodChange = (event, newPeriod) => {
+        if (newPeriod !== null) {
+            setPeriodType(newPeriod);
+        }
+    };
 
     useEffect(() => {
         const fetchReport = async () => {
@@ -45,8 +89,8 @@ function ReportsPage() {
             setLoading(true);
             setError('');
             try {
-                // 获取周报数据
-                const data = await apiFetch('/api/statistics/report?type=weekly');
+                // 获取报告数据，根据选择的时间范围
+                const data = await apiFetch(`/api/statistics/report?type=${periodType}`);
                 setReport(data);
             } catch (err) {
                 setError(`获取学习报告失败: ${err.message}`);
@@ -56,7 +100,7 @@ function ReportsPage() {
             }
         };
         fetchReport();
-    }, [isAuthenticated]); // 依赖认证状态
+    }, [isAuthenticated, periodType]); // 依赖认证状态和选择的时间段
 
     if (loading) {
         return (
@@ -111,23 +155,21 @@ function ReportsPage() {
     // 正常显示报告
     return (
         <Container maxWidth="md" className="animate-fade-in">
-            <Box sx={{ mt: 4, mb: 5 }}>
+            <Box sx={{ mt: 4, mb: 3 }}>
                 <Typography
                     component="h1"
                     variant="h4"
+                    className="gradient-text"
                     sx={{
                         fontWeight: 'bold',
                         textAlign: 'center',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent'
+                        justifyContent: 'center'
                     }}
                 >
                     <AssessmentIcon sx={{ mr: 1.5, fontSize: '2rem' }} />
-                    学习报告 ({report.periodType === 'weekly' ? '上周总结' : '报告'})
+                    学习报告 ({report.periodTitle || '报告'})
                 </Typography>
                 <Typography
                     variant="subtitle1"
@@ -142,6 +184,60 @@ function ReportsPage() {
                 </Typography>
             </Box>
 
+            {/* 时间范围选择器 */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
+                <ToggleButtonGroup
+                    value={periodType}
+                    exclusive
+                    onChange={handlePeriodChange}
+                    aria-label="时间范围选择"
+                    sx={{
+                        '& .MuiToggleButton-root': {
+                            borderRadius: '8px',
+                            mx: 0.5,
+                            px: 2,
+                            py: 1,
+                            color: 'text.secondary',
+                            borderColor: `rgba(${isDarkMode ? '196, 164, 132' : '166, 124, 82'}, 0.2)`,
+                            '&.Mui-selected': {
+                                color: earthToneColors.caramelBrown,
+                                backgroundColor: `rgba(${isDarkMode ? '196, 164, 132' : '166, 124, 82'}, 0.1)`,
+                                '&:hover': {
+                                    backgroundColor: `rgba(${isDarkMode ? '196, 164, 132' : '166, 124, 82'}, 0.15)`
+                                }
+                            },
+                            '&:hover': {
+                                backgroundColor: `rgba(${isDarkMode ? '196, 164, 132' : '166, 124, 82'}, 0.05)`
+                            }
+                        }
+                    }}
+                >
+                    {timeRangeOptions.map(option => (
+                        <ToggleButton
+                            key={option.value}
+                            value={option.value}
+                            aria-label={option.label}
+                            sx={{
+                                display: 'flex',
+                                flexDirection: { xs: 'column', sm: 'row' },
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.3s ease',
+                                '&.Mui-selected': {
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: `0 4px 12px rgba(${isDarkMode ? '196, 164, 132' : '166, 124, 82'}, 0.2)`
+                                }
+                            }}
+                        >
+                            {option.icon}
+                            <Typography sx={{ ml: { xs: 0, sm: 1 }, mt: { xs: 0.5, sm: 0 }, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                                {option.label}
+                            </Typography>
+                        </ToggleButton>
+                    ))}
+                </ToggleButtonGroup>
+            </Box>
+
             <Fade in={true} timeout={800}>
                 <Card
                     elevation={0}
@@ -150,8 +246,10 @@ function ReportsPage() {
                         borderRadius: '16px',
                         position: 'relative',
                         overflow: 'hidden',
-                        mb: 4
+                        mb: 4,
+                        backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
                     }}
+                    component={Paper} // 显式指定为Paper组件
                 >
                     {/* 装饰条纹 */}
                     <Box
@@ -161,7 +259,9 @@ function ReportsPage() {
                             left: 0,
                             width: '100%',
                             height: '6px',
-                            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                            background: isDarkMode 
+                                ? `linear-gradient(90deg, ${earthToneColors.caramelBrown}, ${earthToneColors.milkCoffee})`
+                                : `linear-gradient(90deg, ${earthToneColors.caramelBrown}, ${earthToneColors.deepMilkTea})`,
                             opacity: 0.7
                         }}
                     />
@@ -174,7 +274,7 @@ function ReportsPage() {
                                 fontWeight: 'bold',
                                 display: 'flex',
                                 alignItems: 'center',
-                                color: '#4776E6'
+                                color: earthToneColors.caramelBrown
                             }}
                         >
                             <SpeedIcon sx={{ mr: 1.5 }} />
@@ -187,19 +287,19 @@ function ReportsPage() {
                                     sx={{
                                         p: 2,
                                         borderRadius: '12px',
-                                        background: 'rgba(71, 118, 230, 0.1)',
+                                        background: `rgba(${isDarkMode ? '125, 91, 61' : '166, 124, 82'}, 0.1)`,
                                         textAlign: 'center',
                                         transition: 'all 0.3s ease',
                                         '&:hover': {
                                             transform: 'translateY(-5px)',
-                                            boxShadow: '0 10px 20px rgba(71, 118, 230, 0.2)'
+                                            boxShadow: `0 10px 20px rgba(${isDarkMode ? '125, 91, 61' : '166, 124, 82'}, 0.2)`
                                         }
                                     }}
                                 >
                                     <RepeatIcon
                                         sx={{
                                             fontSize: '2.5rem',
-                                            color: '#4776E6',
+                                            color: earthToneColors.caramelBrown,
                                             mb: 1
                                         }}
                                     />
@@ -207,7 +307,7 @@ function ReportsPage() {
                                         variant="h4"
                                         sx={{
                                             fontWeight: 'bold',
-                                            color: '#4776E6'
+                                            color: earthToneColors.caramelBrown
                                         }}
                                     >
                                         {report.summary?.totalReviews || 0}
@@ -225,19 +325,19 @@ function ReportsPage() {
                                     sx={{
                                         p: 2,
                                         borderRadius: '12px',
-                                        background: 'rgba(142, 84, 233, 0.1)',
+                                        background: `rgba(${isDarkMode ? '120, 87, 49' : '210, 180, 140'}, 0.1)`,
                                         textAlign: 'center',
                                         transition: 'all 0.3s ease',
                                         '&:hover': {
                                             transform: 'translateY(-5px)',
-                                            boxShadow: '0 10px 20px rgba(142, 84, 233, 0.2)'
+                                            boxShadow: `0 10px 20px rgba(${isDarkMode ? '120, 87, 49' : '210, 180, 140'}, 0.2)`
                                         }
                                     }}
                                 >
                                     <SchoolIcon
                                         sx={{
                                             fontSize: '2.5rem',
-                                            color: '#8E54E9',
+                                            color: earthToneColors.deepMilkTea,
                                             mb: 1
                                         }}
                                     />
@@ -245,7 +345,7 @@ function ReportsPage() {
                                         variant="h4"
                                         sx={{
                                             fontWeight: 'bold',
-                                            color: '#8E54E9'
+                                            color: earthToneColors.deepMilkTea
                                         }}
                                     >
                                         {report.summary?.wordsReviewedCount || 0}
@@ -263,19 +363,19 @@ function ReportsPage() {
                                     sx={{
                                         p: 2,
                                         borderRadius: '12px',
-                                        background: 'rgba(76, 175, 80, 0.1)',
+                                        background: `rgba(${isDarkMode ? '196, 164, 132' : '196, 164, 132'}, 0.1)`,
                                         textAlign: 'center',
                                         transition: 'all 0.3s ease',
                                         '&:hover': {
                                             transform: 'translateY(-5px)',
-                                            boxShadow: '0 10px 20px rgba(76, 175, 80, 0.2)'
+                                            boxShadow: `0 10px 20px rgba(${isDarkMode ? '196, 164, 132' : '196, 164, 132'}, 0.2)`
                                         }
                                     }}
                                 >
                                     <CheckCircleIcon
                                         sx={{
                                             fontSize: '2.5rem',
-                                            color: '#4CAF50',
+                                            color: earthToneColors.milkCoffee,
                                             mb: 1
                                         }}
                                     />
@@ -283,7 +383,7 @@ function ReportsPage() {
                                         variant="h4"
                                         sx={{
                                             fontWeight: 'bold',
-                                            color: '#4CAF50'
+                                            color: earthToneColors.milkCoffee
                                         }}
                                     >
                                         {report.masteredInPeriod || 0}
@@ -309,8 +409,10 @@ function ReportsPage() {
                         borderRadius: '16px',
                         position: 'relative',
                         overflow: 'hidden',
-                        mb: 4
+                        mb: 4,
+                        backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
                     }}
+                    component={Paper} // 显式指定为Paper组件
                 >
                     {/* 装饰条纹 */}
                     <Box
@@ -320,7 +422,9 @@ function ReportsPage() {
                             left: 0,
                             width: '100%',
                             height: '6px',
-                            background: 'linear-gradient(90deg, #FF9800, #FF5722)',
+                            background: isDarkMode 
+                                ? `linear-gradient(90deg, ${earthToneColors.deepMilkTea}, ${earthToneColors.caramelBrown})`
+                                : `linear-gradient(90deg, ${earthToneColors.milkCoffee}, ${earthToneColors.caramelBrown})`,
                             opacity: 0.7
                         }}
                     />
@@ -333,7 +437,7 @@ function ReportsPage() {
                                 fontWeight: 'bold',
                                 display: 'flex',
                                 alignItems: 'center',
-                                color: '#FF9800'
+                                color: earthToneColors.milkCoffee
                             }}
                         >
                             <WarningIcon sx={{ mr: 1.5 }} />
@@ -355,16 +459,16 @@ function ReportsPage() {
                                                 mb: 1,
                                                 p: 2,
                                                 borderRadius: '12px',
-                                                background: 'rgba(255, 152, 0, 0.05)',
+                                                background: `rgba(${isDarkMode ? '196, 164, 132' : '196, 164, 132'}, 0.05)`,
                                                 transition: 'all 0.3s ease',
                                                 '&:hover': {
-                                                    background: 'rgba(255, 152, 0, 0.1)',
+                                                    background: `rgba(${isDarkMode ? '196, 164, 132' : '196, 164, 132'}, 0.1)`,
                                                     transform: 'translateX(5px)'
                                                 }
                                             }}
                                         >
                                             <ListItemIcon>
-                                                <WarningIcon sx={{ color: '#FF9800' }} />
+                                                <WarningIcon sx={{ color: earthToneColors.milkCoffee }} />
                                             </ListItemIcon>
                                             <ListItemText
                                                 primary={
@@ -372,7 +476,7 @@ function ReportsPage() {
                                                         variant="subtitle1"
                                                         sx={{
                                                             fontWeight: 'bold',
-                                                            color: '#FF9800'
+                                                            color: earthToneColors.milkCoffee
                                                         }}
                                                     >
                                                         {item.spelling}
@@ -384,8 +488,8 @@ function ReportsPage() {
                                                 label={`错误率: ${Math.round(item.errorRate * 100)}%`}
                                                 sx={{
                                                     borderRadius: '16px',
-                                                    background: 'rgba(244, 67, 54, 0.1)',
-                                                    color: '#f44336',
+                                                    background: `rgba(${isDarkMode ? '166, 124, 82' : '166, 124, 82'}, 0.1)`,
+                                                    color: earthToneColors.caramelBrown,
                                                     fontWeight: 'medium',
                                                     border: 'none'
                                                 }}
@@ -399,7 +503,7 @@ function ReportsPage() {
                                 sx={{
                                     p: 3,
                                     borderRadius: '12px',
-                                    background: 'rgba(76, 175, 80, 0.05)',
+                                    background: `rgba(${isDarkMode ? '166, 124, 82' : '166, 124, 82'}, 0.05)`,
                                     display: 'flex',
                                     alignItems: 'center',
                                     mt: 2
@@ -407,13 +511,13 @@ function ReportsPage() {
                             >
                                 <CheckCircleIcon
                                     sx={{
-                                        color: '#4CAF50',
+                                        color: earthToneColors.caramelBrown,
                                         fontSize: '2rem',
                                         mr: 2
                                     }}
                                 />
-                                <Typography sx={{ color: '#4CAF50', fontWeight: 'medium' }}>
-                                    表现不错，上周没有发现需要特别注意的薄弱单词！
+                                <Typography sx={{ color: earthToneColors.caramelBrown, fontWeight: 'medium' }}>
+                                    表现不错，所选时间段内没有发现需要特别注意的薄弱单词！
                                 </Typography>
                             </Box>
                         )}
@@ -429,8 +533,10 @@ function ReportsPage() {
                         borderRadius: '16px',
                         position: 'relative',
                         overflow: 'hidden',
-                        mb: 4
+                        mb: 4,
+                        backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
                     }}
+                    component={Paper} // 显式指定为Paper组件
                 >
                     {/* 装饰条纹 */}
                     <Box
@@ -440,7 +546,9 @@ function ReportsPage() {
                             left: 0,
                             width: '100%',
                             height: '6px',
-                            background: 'linear-gradient(90deg, #03A9F4, #00BCD4)',
+                            background: isDarkMode 
+                                ? `linear-gradient(90deg, ${earthToneColors.milkCoffee}, ${earthToneColors.deepMilkTea})`
+                                : `linear-gradient(90deg, ${earthToneColors.deepMilkTea}, ${earthToneColors.milkCoffee})`,
                             opacity: 0.7
                         }}
                     />
@@ -453,7 +561,7 @@ function ReportsPage() {
                                 fontWeight: 'bold',
                                 display: 'flex',
                                 alignItems: 'center',
-                                color: '#03A9F4'
+                                color: earthToneColors.deepMilkTea
                             }}
                         >
                             <LightbulbIcon sx={{ mr: 1.5 }} />
@@ -475,16 +583,16 @@ function ReportsPage() {
                                                 mb: 1,
                                                 p: 2,
                                                 borderRadius: '12px',
-                                                background: 'rgba(3, 169, 244, 0.05)',
+                                                background: `rgba(${isDarkMode ? '210, 180, 140' : '210, 180, 140'}, 0.05)`,
                                                 transition: 'all 0.3s ease',
                                                 '&:hover': {
-                                                    background: 'rgba(3, 169, 244, 0.1)',
+                                                    background: `rgba(${isDarkMode ? '210, 180, 140' : '210, 180, 140'}, 0.1)`,
                                                     transform: 'translateX(5px)'
                                                 }
                                             }}
                                         >
                                             <ListItemIcon>
-                                                <LightbulbIcon sx={{ color: '#03A9F4' }} />
+                                                <LightbulbIcon sx={{ color: earthToneColors.deepMilkTea }} />
                                             </ListItemIcon>
                                             <Typography variant="body1">{suggestion}</Typography>
                                         </ListItem>
@@ -496,7 +604,7 @@ function ReportsPage() {
                                 sx={{
                                     p: 3,
                                     borderRadius: '12px',
-                                    background: 'rgba(76, 175, 80, 0.05)',
+                                    background: `rgba(${isDarkMode ? '166, 124, 82' : '166, 124, 82'}, 0.05)`,
                                     display: 'flex',
                                     alignItems: 'center',
                                     mt: 2
@@ -504,12 +612,12 @@ function ReportsPage() {
                             >
                                 <CheckCircleIcon
                                     sx={{
-                                        color: '#4CAF50',
+                                        color: earthToneColors.caramelBrown,
                                         fontSize: '2rem',
                                         mr: 2
                                     }}
                                 />
-                                <Typography sx={{ color: '#4CAF50', fontWeight: 'medium' }}>
+                                <Typography sx={{ color: earthToneColors.caramelBrown, fontWeight: 'medium' }}>
                                     暂无特别建议，请继续保持！
                                 </Typography>
                             </Box>

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiFetch from '../utils/api';
+import { useTheme } from '../context/ThemeContext';
+import { COLOR_SCHEMES } from '../context/ThemeContext';
+import { earthToneColors, blueGrayColors, greenBeigeColors } from '../theme/themeConfig';
 
 // MUI组件
 import Container from '@mui/material/Container';
@@ -39,6 +42,7 @@ function RegisterPage() {
     const [focusedField, setFocusedField] = useState(null);
 
     const navigate = useNavigate();
+    const { theme, colorScheme } = useTheme();
 
     const { username, email, password, confirmPassword } = formData;
 
@@ -48,6 +52,57 @@ function RegisterPage() {
 
     const toggleShowPassword = () => {
         setShowPassword(!showPassword);
+    };
+
+    // 获取当前主题的颜色
+    const getThemeColors = () => {
+        switch(colorScheme) {
+            case COLOR_SCHEMES.BLUE_GRAY:
+                return blueGrayColors;
+            case COLOR_SCHEMES.GREEN_BEIGE:
+                return greenBeigeColors;
+            case COLOR_SCHEMES.EARTH_TONE:
+            default:
+                return earthToneColors;
+        }
+    };
+    
+    // 当前主题的颜色
+    const themeColors = getThemeColors();
+    
+    const getThemeColor = (colorKey) => {
+        // 首先尝试从themeColors对象直接获取
+        if (themeColors[colorKey]) {
+            return themeColors[colorKey];
+        }
+        
+        // 对于不存在的键，进行映射
+        switch (colorKey) {
+            case 'primary':
+                return themeColors.accent || earthToneColors.caramelBrown;
+            case 'secondary':
+                return themeColors.secondary || earthToneColors.deepMilkTea;
+            case 'primaryShadow':
+                return 'rgba(166, 124, 82, 0.25)';
+            case 'primaryShadowHover':
+                return 'rgba(166, 124, 82, 0.35)';
+            case 'primaryShadowActive':
+                return 'rgba(166, 124, 82, 0.2)';
+            case 'secondaryShadow':
+                return 'rgba(166, 124, 82, 0.2)';
+            case 'success':
+                return '#4CAF50';
+            case 'successShadow':
+                return 'rgba(76, 175, 80, 0.2)';
+            case 'errorShadow':
+                return 'rgba(211, 47, 47, 0.2)';
+            case 'primaryLight':
+                return themeColors.tertiary || earthToneColors.milkCoffee;
+            case 'secondaryLight':
+                return themeColors.light || earthToneColors.lightMilkTea;
+            default:
+                return earthToneColors[colorKey] || '#A67C52'; // 默认返回土色棕色
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -82,8 +137,8 @@ function RegisterPage() {
                 confirmPassword: '',
             });
             
-            // 可选: 在一段时间后自动跳转到登录页
-            // setTimeout(() => navigate('/login'), 5000);
+            // 5秒后自动跳转到验证码页面
+            setTimeout(() => navigate('/verify-code', { state: { email } }), 5000);
         } catch (err) {
             setError(err.message || '注册失败，请稍后重试');
         } finally {
@@ -124,10 +179,10 @@ function RegisterPage() {
                                 <Avatar 
                                     sx={{ 
                                         m: 1, 
-                                        bgcolor: '#4caf50',
+                                        bgcolor: getThemeColor('success'),
                                         width: 70,
                                         height: 70,
-                                        boxShadow: '0 8px 16px rgba(76, 175, 80, 0.2)'
+                                        boxShadow: `0 8px 16px ${getThemeColor('successShadow')}`
                                     }}
                                 >
                                     <CheckCircleIcon sx={{ color: 'white', fontSize: '40px' }} />
@@ -156,36 +211,36 @@ function RegisterPage() {
                                         color: '#555'
                                     }}
                                 >
-                                    我们已经向您的邮箱 {email} 发送了一封验证邮件，请检查邮箱并点击验证链接完成注册。
+                                    我们已经向您的邮箱 {email} 发送了一封包含6位数字验证码的邮件，请查收邮件并输入验证码完成注册。
                                 </Typography>
 
                                 <Button
                                     component={RouterLink}
-                                    to="/login"
+                                    to={`/verify-code?email=${encodeURIComponent(email)}`}
                                     fullWidth
                                     sx={{
                                         mt: 3,
                                         mb: 2,
                                         py: 1.5,
-                                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                        background: `linear-gradient(90deg, ${getThemeColor('primary')}, ${getThemeColor('secondary')})`,
                                         color: 'white',
                                         borderRadius: '12px',
                                         fontWeight: 'bold',
                                         fontSize: '1rem',
                                         textTransform: 'none',
                                         transition: 'all 0.3s ease',
-                                        boxShadow: '0 8px 15px rgba(71, 118, 230, 0.25)',
+                                        boxShadow: `0 8px 15px ${getThemeColor('primaryShadow')}`,
                                         '&:hover': {
-                                            boxShadow: '0 12px 20px rgba(71, 118, 230, 0.35)',
+                                            boxShadow: `0 12px 20px ${getThemeColor('primaryShadowHover')}`,
                                             transform: 'translateY(-3px)'
                                         },
                                         '&:active': {
-                                            boxShadow: '0 5px 10px rgba(71, 118, 230, 0.2)',
+                                            boxShadow: `0 5px 10px ${getThemeColor('primaryShadowActive')}`,
                                             transform: 'translateY(0)'
                                         }
                                     }}
                                 >
-                                    前往登录页面
+                                    前往验证页面
                                 </Button>
                             </Box>
                         </Slide>
@@ -199,16 +254,17 @@ function RegisterPage() {
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
+                                backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
                             }}
                         >
                             <Avatar 
                                 sx={{ 
                                     m: 1, 
                                     bgcolor: 'transparent',
-                                    background: 'linear-gradient(135deg, #4776E6, #8E54E9)',
+                                    background: `linear-gradient(135deg, ${getThemeColor('primary')}, ${getThemeColor('secondary')})`,
                                     width: 56,
                                     height: 56,
-                                    boxShadow: '0 8px 16px rgba(142, 84, 233, 0.2)'
+                                    boxShadow: `0 8px 16px ${getThemeColor('secondaryShadow')}`
                                 }}
                             >
                                 <PersonAddIcon sx={{ color: 'white', fontSize: '28px' }} />
@@ -236,7 +292,7 @@ function RegisterPage() {
                                         width: '100%', 
                                         mb: 2,
                                         borderRadius: '12px',
-                                        boxShadow: '0 4px 12px rgba(211, 47, 47, 0.2)'
+                                        boxShadow: `0 4px 12px ${getThemeColor('errorShadow')}`
                                     }}
                                 >
                                     {error}
@@ -271,7 +327,7 @@ function RegisterPage() {
                                                 <PersonIcon 
                                                     sx={{ 
                                                         mr: 1, 
-                                                        color: focusedField === 'username' ? '#4776E6' : 'text.secondary'
+                                                        color: focusedField === 'username' ? getThemeColor('primary') : 'text.secondary'
                                                     }} 
                                                 />
                                             ),
@@ -286,12 +342,13 @@ function RegisterPage() {
                                                     borderRadius: '12px',
                                                 },
                                                 '&:hover fieldset': {
-                                                    borderColor: '#4776E6',
+                                                    borderColor: getThemeColor('primary'),
                                                 },
                                                 '&.Mui-focused fieldset': {
-                                                    borderColor: '#4776E6',
+                                                    borderColor: getThemeColor('primary'),
                                                 },
                                             },
+                                            backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
                                         }}
                                     />
                                 </Box>
@@ -323,7 +380,7 @@ function RegisterPage() {
                                                 <AlternateEmailIcon 
                                                     sx={{ 
                                                         mr: 1, 
-                                                        color: focusedField === 'email' ? '#4776E6' : 'text.secondary'
+                                                        color: focusedField === 'email' ? getThemeColor('primary') : 'text.secondary'
                                                     }} 
                                                 />
                                             ),
@@ -338,12 +395,13 @@ function RegisterPage() {
                                                     borderRadius: '12px',
                                                 },
                                                 '&:hover fieldset': {
-                                                    borderColor: '#4776E6',
+                                                    borderColor: getThemeColor('primary'),
                                                 },
                                                 '&.Mui-focused fieldset': {
-                                                    borderColor: '#4776E6',
+                                                    borderColor: getThemeColor('primary'),
                                                 },
                                             },
+                                            backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
                                         }}
                                     />
                                 </Box>
@@ -376,7 +434,7 @@ function RegisterPage() {
                                                 <LockIcon 
                                                     sx={{ 
                                                         mr: 1, 
-                                                        color: focusedField === 'password' ? '#4776E6' : 'text.secondary'
+                                                        color: focusedField === 'password' ? getThemeColor('primary') : 'text.secondary'
                                                     }} 
                                                 />
                                             ),
@@ -387,7 +445,7 @@ function RegisterPage() {
                                                         cursor: 'pointer',
                                                         color: 'text.secondary',
                                                         '&:hover': {
-                                                            color: '#4776E6',
+                                                            color: getThemeColor('primary'),
                                                         },
                                                     }}
                                                 >
@@ -405,12 +463,13 @@ function RegisterPage() {
                                                     borderRadius: '12px',
                                                 },
                                                 '&:hover fieldset': {
-                                                    borderColor: '#4776E6',
+                                                    borderColor: getThemeColor('primary'),
                                                 },
                                                 '&.Mui-focused fieldset': {
-                                                    borderColor: '#4776E6',
+                                                    borderColor: getThemeColor('primary'),
                                                 },
                                             },
+                                            backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
                                         }}
                                     />
                                 </Box>
@@ -443,7 +502,7 @@ function RegisterPage() {
                                                 <LockIcon 
                                                     sx={{ 
                                                         mr: 1, 
-                                                        color: focusedField === 'confirmPassword' ? '#4776E6' : 'text.secondary'
+                                                        color: focusedField === 'confirmPassword' ? getThemeColor('primary') : 'text.secondary'
                                                     }} 
                                                 />
                                             ),
@@ -458,12 +517,13 @@ function RegisterPage() {
                                                     borderRadius: '12px',
                                                 },
                                                 '&:hover fieldset': {
-                                                    borderColor: '#4776E6',
+                                                    borderColor: getThemeColor('primary'),
                                                 },
                                                 '&.Mui-focused fieldset': {
-                                                    borderColor: '#4776E6',
+                                                    borderColor: getThemeColor('primary'),
                                                 },
                                             },
+                                            backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
                                         }}
                                         error={password !== confirmPassword && confirmPassword !== ''}
                                         helperText={password !== confirmPassword && confirmPassword !== '' ? '密码不匹配' : ''}
@@ -478,20 +538,20 @@ function RegisterPage() {
                                         mt: 3,
                                         mb: 2,
                                         py: 1.5,
-                                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                        background: `linear-gradient(90deg, ${getThemeColor('primary')}, ${getThemeColor('secondary')})`,
                                         color: 'white',
                                         borderRadius: '12px',
                                         fontWeight: 'bold',
                                         fontSize: '1rem',
                                         textTransform: 'none',
                                         transition: 'all 0.3s ease',
-                                        boxShadow: '0 8px 15px rgba(71, 118, 230, 0.25)',
+                                        boxShadow: `0 8px 15px ${getThemeColor('primaryShadow')}`,
                                         '&:hover': {
-                                            boxShadow: '0 12px 20px rgba(71, 118, 230, 0.35)',
+                                            boxShadow: `0 12px 20px ${getThemeColor('primaryShadowHover')}`,
                                             transform: 'translateY(-3px)'
                                         },
                                         '&:active': {
-                                            boxShadow: '0 5px 10px rgba(71, 118, 230, 0.2)',
+                                            boxShadow: `0 5px 10px ${getThemeColor('primaryShadowActive')}`,
                                             transform: 'translateY(0)'
                                         }
                                     }}
@@ -506,11 +566,11 @@ function RegisterPage() {
                                             to="/login" 
                                             variant="body2"
                                             sx={{
-                                                color: '#4776E6',
+                                                color: getThemeColor('primary'),
                                                 textDecoration: 'none',
                                                 position: 'relative',
                                                 '&:hover': {
-                                                    color: '#8E54E9'
+                                                    color: getThemeColor('secondary')
                                                 },
                                                 '&::after': {
                                                     content: '""',
@@ -519,7 +579,7 @@ function RegisterPage() {
                                                     height: '2px',
                                                     bottom: '-2px',
                                                     left: 0,
-                                                    background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                                    background: `linear-gradient(90deg, ${getThemeColor('primary')}, ${getThemeColor('secondary')})`,
                                                     transformOrigin: 'left',
                                                     transform: 'scaleX(0)',
                                                     transition: 'transform 0.3s ease'
@@ -544,7 +604,7 @@ function RegisterPage() {
                             width: '150px',
                             height: '150px',
                             borderRadius: '50%',
-                            background: 'linear-gradient(135deg, rgba(71, 118, 230, 0.5), rgba(142, 84, 233, 0.5))',
+                            background: `linear-gradient(135deg, ${getThemeColor('primaryLight')}, ${getThemeColor('secondaryLight')})`,
                             filter: 'blur(40px)',
                             top: '-50px',
                             right: '-80px',
@@ -558,7 +618,7 @@ function RegisterPage() {
                             width: '120px',
                             height: '120px',
                             borderRadius: '50%',
-                            background: 'linear-gradient(135deg, rgba(142, 84, 233, 0.5), rgba(71, 118, 230, 0.5))',
+                            background: `linear-gradient(135deg, ${getThemeColor('secondaryLight')}, ${getThemeColor('primaryLight')})`,
                             filter: 'blur(40px)',
                             bottom: '-40px',
                             left: '-60px',

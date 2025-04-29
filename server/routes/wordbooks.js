@@ -42,8 +42,57 @@ router.post('/', authMiddleware, async (req, res) => {
 // @access  Private
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const wordbooks = await WordBook.find({ owner: req.user.id }).sort({ updatedAt: -1 });
-    res.json(wordbooks);
+    const userId = req.user.id;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    
+    // 获取用户的所有单词书
+    const wordbooks = await WordBook.find({ owner: userId }).sort({ updatedAt: -1 });
+    
+    // 获取学习记录以计算统计数据
+    const learningRecords = await LearningRecord.find({ user: userId });
+    
+    // 创建单词ID到学习状态的映射
+    const wordStatusMap = {};
+    learningRecords.forEach(record => {
+      const wordId = record.word.toString();
+      const isMastered = record.status === 'Mastered' || record.familiarity >= 3;
+      
+      // 记录单词状态
+      wordStatusMap[wordId] = {
+        learned: true,
+        mastered: isMastered
+      };
+    });
+    
+    // 为每个单词书计算统计数据
+    const wordbooksWithStats = await Promise.all(wordbooks.map(async (wordbook) => {
+      const wordbookObj = wordbook.toObject();
+      
+      // 总单词数就是words数组的长度
+      const totalWords = wordbookObj.words.length;
+      
+      // 计算已学习和已掌握的单词数
+      let learnedCount = 0;
+      let masteredCount = 0;
+      
+      wordbookObj.words.forEach(wordId => {
+        const wordIdStr = wordId.toString();
+        if (wordStatusMap[wordIdStr]) {
+          if (wordStatusMap[wordIdStr].learned) learnedCount++;
+          if (wordStatusMap[wordIdStr].mastered) masteredCount++;
+        }
+      });
+      
+      // 添加统计数据
+      return {
+        ...wordbookObj,
+        totalWords,
+        learnedCount,
+        masteredCount
+      };
+    }));
+    
+    res.json(wordbooksWithStats);
   } catch (err) {
     console.error('获取单词书列表错误:', err.message);
     res.status(500).send('服务器错误');
@@ -57,54 +106,79 @@ router.get('/', authMiddleware, async (req, res) => {
 router.get('/:id', authMiddleware, async (req, res) => {
   const wordbookId = req.params.id;
   const userId = req.user.id;
+  // 添加分页支持
+  const page = parseInt(req.query.page) || 1; // 默认第1页
+  const limit = parseInt(req.query.limit) || 50; // 默认每页50个单词
+  const skip = (page - 1) * limit;
 
   if (!mongoose.Types.ObjectId.isValid(wordbookId)) {
       return res.status(400).json({ msg: '无效的单词书 ID' });
   }
 
   try {
-    // 1. 查找单词书，同时填充基础单词信息
-    // 使用 lean() 提高性能，因为我们将构造新的返回对象
-    const wordbook = await WordBook.findById(wordbookId)
-                                    .populate({
-                                        path: 'words',
-                                        select: 'spelling phonetic meaning difficulty tags' // 选择需要的 Word 字段
-                                     })
-                                    .lean(); // 使用 lean
+    // 1. 先查找单词书基本信息，不包括单词列表
+    const wordbook = await WordBook.findById(wordbookId).lean();
 
     if (!wordbook) { return res.status(404).json({ msg: '单词书未找到' }); }
     if (wordbook.owner.toString() !== userId) { return res.status(403).json({ msg: '无权访问此单词书' }); }
+    
+    // 获取单词书中的单词总数
+    const totalWords = wordbook.words.length;
 
-    // 如果单词书为空，直接返回
-    if (!wordbook.words || wordbook.words.length === 0) {
-        return res.json({ ...wordbook, words: [] }); // 确保 words 是空数组
+    // 使用skip和limit实现分页
+    // 获取当前页的单词ID
+    const pageWordIds = wordbook.words.slice(skip, skip + limit);
+
+    // 2. 根据分页后的单词ID获取单词详情
+    const pageWords = await Word.find({
+      _id: { $in: pageWordIds }
+    }).select('spelling phonetic meaning difficulty tags').lean();
+
+    // 如果当前页没有单词，直接返回
+    if (!pageWords || pageWords.length === 0) {
+      return res.json({ 
+        ...wordbook, 
+        words: [], 
+        pagination: {
+          total: totalWords,
+          page,
+          limit,
+          totalPages: Math.ceil(totalWords / limit)
+        }
+      });
     }
 
-    // 2. 获取这些单词的学习记录状态
-    const wordIds = wordbook.words.map(w => w._id); // 获取所有单词的 ID
+    // 3. 获取这些单词的学习记录状态
     const learningRecords = await LearningRecord.find({
         user: userId,
-        word: { $in: wordIds } // 查询条件：用户 ID 和 单词 ID 列表
+        word: { $in: pageWordIds } // 查询条件：用户 ID 和 当前页的单词 ID 列表
     }).select('word status').lean(); // 只选择 word ID 和 status 字段
 
-    // 3. 创建一个 单词ID -> 状态 的映射，方便查找
+    // 4. 创建一个 单词ID -> 状态 的映射，方便查找
     const statusMap = learningRecords.reduce((map, record) => {
         // record.word 是 ObjectId，需要转为字符串作为 key
         map[record.word.toString()] = record.status;
         return map;
     }, {});
 
-    // 4. 将学习状态合并到单词数据中
-    // 创建一个新的单词数组，包含状态信息
-    const wordsWithStatus = wordbook.words.map(word => ({
+    // 5. 将学习状态合并到单词数据中
+    const wordsWithStatus = pageWords.map(word => ({
         ...word, // 展开原始单词信息 (spelling, phonetic, etc.)
         // 从 map 中查找状态，如果找不到（说明用户还没学过这个词），则默认为 'New'
         status: statusMap[word._id.toString()] || 'New'
     }));
 
-    // 5. 返回合并后的数据
-    // 返回原始单词书信息，但用包含状态的单词数组替换原来的 words 数组
-    res.json({ ...wordbook, words: wordsWithStatus });
+    // 6. 返回带分页信息的数据
+    res.json({ 
+      ...wordbook, 
+      words: wordsWithStatus,
+      pagination: {
+        total: totalWords,
+        page,
+        limit,
+        totalPages: Math.ceil(totalWords / limit)
+      }
+    });
 
   } catch (err) {
     console.error('获取单词书详情错误:', err.message);

@@ -5,10 +5,10 @@ const mongoose = require('mongoose'); // 用于验证 ObjectId
 
 // --- 获取/搜索单词列表 (支持分页和搜索) ---
 // @route   GET api/words
-// @desc    获取单词列表，支持按拼写搜索和分页
+// @desc    获取单词列表，支持按拼写搜索、词性过滤和分页
 // @access  Public (假设单词列表是公开可查的)
 router.get('/', async (req, res) => {
-  const { search, page = 1, limit = 20 } = req.query; // 获取查询参数
+  const { search, page = 1, limit = 20, pos } = req.query; // 获取查询参数
 
   try {
     // 构建查询条件
@@ -16,6 +16,34 @@ router.get('/', async (req, res) => {
     if (search) {
       // 如果有搜索词，则按拼写进行模糊匹配 (不区分大小写)
       query.spelling = { $regex: search, $options: 'i' };
+    }
+    
+    if (pos && pos !== 'all') {
+      // 简化的词性过滤方式，使用$and操作符正确组合条件
+      switch(pos) {
+        case 'n': // 名词
+          // 精确匹配名词，排除副词
+          query.partOfSpeech = { 
+            $regex: '\\bn\\.', // 词性边界后跟n.
+            $not: /adv\./ // 不含adv.
+          };
+          break;
+        case 'v': // 动词
+          // 精确匹配动词，排除副词
+          query.partOfSpeech = { 
+            $regex: '\\bv\\.', // 词性边界后跟v.
+            $not: /adv\./ // 不含adv.
+          };
+          break;
+        case 'adj': // 形容词
+          query.partOfSpeech = { $regex: '\\badj\\.', $options: 'i' };
+          break;
+        case 'adv': // 副词
+          query.partOfSpeech = { $regex: '\\badv\\.', $options: 'i' };
+          break;
+        default: // 其他词性使用简单匹配
+          query.partOfSpeech = { $regex: pos, $options: 'i' };
+      }
     }
     // TODO: 后续可以添加按 tags 等字段过滤的功能
     // if (tags) { query.tags = { $in: tags.split(',') }; }

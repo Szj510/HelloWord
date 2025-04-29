@@ -26,6 +26,39 @@ const dictionaryFiles = [
 ];
 // --- 配置区结束 ---
 
+// 从单词释义中提取词性的辅助函数
+function extractPartOfSpeechFromMeaning(meaning) {
+    if (!meaning) return null;
+    
+    // 常见词性及其缩写的正则模式
+    const posPatterns = [
+        {regex: /\b(n\.|noun)\b/i, pos: 'n.'},
+        {regex: /\b(v\.|vt\.|vi\.|verb)\b/i, pos: 'v.'},
+        {regex: /\b(adj\.|adjective)\b/i, pos: 'adj.'},
+        {regex: /\b(adv\.|adverb)\b/i, pos: 'adv.'},
+        {regex: /\b(prep\.|preposition)\b/i, pos: 'prep.'},
+        {regex: /\b(conj\.|conjunction)\b/i, pos: 'conj.'},
+        {regex: /\b(pron\.|pronoun)\b/i, pos: 'pron.'},
+        {regex: /\b(num\.|numeral)\b/i, pos: 'num.'},
+        {regex: /\b(art\.|article)\b/i, pos: 'art.'},
+        {regex: /\b(int\.|interjection)\b/i, pos: 'int.'},
+    ];
+    
+    // 尝试匹配词性
+    for (const pattern of posPatterns) {
+        if (pattern.regex.test(meaning)) {
+            return pattern.pos;
+        }
+    }
+    
+    // 如果没找到匹配，根据常见规则推断
+    if (/^to\s+\w+/i.test(meaning)) {
+        return 'v.'; // 以"to + 动词原形"开头的通常是动词
+    }
+    
+    // 默认返回空
+    return null;
+}
 
 // 映射 JSON 数据到 Word Schema
 function mapJsonToWordSchema(jsonData, tag) {
@@ -39,11 +72,18 @@ function mapJsonToWordSchema(jsonData, tag) {
 
     // 确保 difficulty 有值 (可以基于 tag 设置默认值，这里简化为 2)
     const difficulty = jsonData.difficulty || 2; // 假设默认难度为 2
+    
+    // 尝试从单词或释义中提取词性
+    let partOfSpeech = jsonData.pos || null;
+    if (!partOfSpeech) {
+        partOfSpeech = extractPartOfSpeechFromMeaning(meaning);
+    }
 
     return {
         spelling: jsonData.name.trim(), // 确保去除拼写前后空格
         phonetic: phonetic.trim(),
         meaning: meaning,
+        partOfSpeech: partOfSpeech, // 添加词性字段
         difficulty: difficulty,
         tags: [tag] // 将文件名对应的标签加入
         // examples 等字段在 JSON 中没有，保持为空或默认
@@ -108,7 +148,7 @@ const seedDatabase = async () => {
                                phonetic: mappedData.phonetic,
                                meaning: mappedData.meaning,
                                difficulty: mappedData.difficulty,
-                               // 可以选择不更新已存在的单词的其他字段，只添加 tag
+                               partOfSpeech: mappedData.partOfSpeech, // 设置词性
                            },
                            $addToSet: { tags: dict.tag } // 将当前词典的 tag 添加到 tags 数组 (如果不存在)
                         },
@@ -141,6 +181,27 @@ const seedDatabase = async () => {
         console.log(`总计处理单词记录: ${totalWordsProcessed} 条`);
         console.log(`总计新增/更新单词: ${totalWordsUpserted} 条`);
         console.log(`总计错误: ${totalErrors} 个`);
+        
+        // 更新现有单词的词性（如果尚未设置）
+        console.log('\n开始更新现有单词的词性信息...');
+        
+        const wordsWithoutPOS = await Word.find({ partOfSpeech: { $exists: false } });
+        console.log(`找到 ${wordsWithoutPOS.length} 个没有词性信息的单词`);
+        
+        let posUpdated = 0;
+        
+        for (const word of wordsWithoutPOS) {
+            const extractedPOS = extractPartOfSpeechFromMeaning(word.meaning);
+            if (extractedPOS) {
+                await Word.updateOne(
+                    { _id: word._id },
+                    { $set: { partOfSpeech: extractedPOS } }
+                );
+                posUpdated++;
+            }
+        }
+        
+        console.log(`成功更新了 ${posUpdated} 个单词的词性信息`);
 
         await mongoose.connection.close();
         console.log('数据库连接已关闭。');

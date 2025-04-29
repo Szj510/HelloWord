@@ -454,3 +454,240 @@
     font-size: 1.8rem;
   }
 }
+
+/* 专注记忆模式卡片样式 */
+.card-focus-mode {
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  border-left: 4px solid #F85D5D; /* 默认使用主色调红色 */
+}
+
+.card-focus-mode:hover {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  transform: translateY(-5px);
+}
+
+/* 定义记忆层级的渐变色样式 */
+.memory-level-1 {
+  border-color: #F85D5D;
+}
+
+.memory-level-2 {
+  border-color: #F8C35D;
+}
+
+.memory-level-3 {
+  border-color: #32CD32;
+}
+
+.memory-level-4 {
+  border-color: #4BA4F9;
+}
+
+.memory-level-5 {
+  border-color: #9F5CE4;
+}
+
+/* 词性标签样式 */
+.pos-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 4px;
+}
+
+.pos-tag-n {
+  background-color: #F8C35D; /* 名词 - 黄色 */
+}
+
+.pos-tag-v {
+  background-color: #4BA4F9; /* 动词 - 蓝色 */
+}
+
+.pos-tag-adj {
+  background-color: #32CD32; /* 形容词 - 绿色 */
+}
+
+.pos-tag-adv {
+  background-color: #9F5CE4; /* 副词 - 紫色 */
+}
+
+.pos-tag-prep {
+  background-color: #F85D5D; /* 介词 - 红色 */
+}
+
+.pos-tag-conj {
+  background-color: #9F6D60; /* 连词 - 棕色 */
+}
+
+/* 记忆层级可视化的卡片边框样式 */
+.memory-border {
+  position: relative;
+  border-width: 2px;
+  border-style: solid;
+  overflow: hidden;
+}
+
+.memory-border::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--memory-color-start), var(--memory-color-end));
+}
+
+/* 词语重要性标记 */
+.importance-high {
+  color: #F85D5D !important; /* 高重要性 - 红色 */
+  font-weight: bold;
+}
+
+.importance-medium {
+  color: #F8C35D !important; /* 中重要性 - 黄色 */
+}
+
+.importance-standard {
+  color: #4BA4F9 !important; /* 标准重要性 - 蓝色 */
+}
+
+/* 翻译文本的专注样式 */
+.translation-text {
+  color: #32CD32 !important; /* 翻译 - 绿色 */
+}
+
+/* 关键笔记样式 */
+.key-note {
+  color: #9F5CE4 !important; /* 关键笔记 - 紫色 */
+  font-style: italic;
+  border-left: 3px solid #9F5CE4;
+  padding-left: 12px;
+  margin-top: 8px;
+}
+
+/* 工作字典样式 */
+.work-dict {
+  color: #9F6D60 !important; /* 工作字典 - 棕色 */
+  padding: 4px 8px;
+  background-color: rgba(159, 109, 96, 0.1);
+  border-radius: 4px;
+}
+
+/* 夜间护眼模式下的调整 */
+.dark-theme .card-focus-mode {
+  background: #1e1e1e;
+  border-left: 4px solid #D85D5D;
+}
+
+.dark-theme .pos-tag-n { background-color: #D8C35D; }
+.dark-theme .pos-tag-v { background-color: #5BA4F9; }
+.dark-theme .pos-tag-adj { background-color: #52CD52; }
+.dark-theme .pos-tag-adv { background-color: #9F6CE4; }
+.dark-theme .pos-tag-prep { background-color: #D85D5D; }
+.dark-theme .pos-tag-conj { background-color: #9F7D70; }
+
+/* 记忆色彩层次渐变动画 */
+@keyframes memory-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(248, 93, 93, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(248, 93, 93, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(248, 93, 93, 0); }
+}
+
+.memory-pulse {
+  animation: memory-pulse 2s infinite;
+}
+
+/* 添加脉冲动画 */
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(71, 118, 230, 0.7);
+  }
+  
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(71, 118, 230, 0);
+  }
+  
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(71, 118, 230, 0);
+  }
+}
+
+/* 淡入动画 */
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 上移动画 */
+.hover-lift {
+  transition: transform 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-5px);
+}
+
+/* 渐变文字 */
+.gradient-text {
+  background: var(--theme-gradient, linear-gradient(90deg, #6A8D6D, #A0C1A3));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+.gradient-text.MuiTypography-root {
+  background: var(--theme-gradient, linear-gradient(90deg, #6A8D6D, #A0C1A3)) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  color: transparent !important;
+  display: inline-block;
+}
+
+/* 给不同的主题应用不同的渐变色 */
+[data-color-scheme="blue-gray"] .gradient-text,
+[data-color-scheme="blue-gray"] .gradient-text.MuiTypography-root {
+  background: linear-gradient(90deg, #404859, #5B6C8C) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+
+[data-color-scheme="earth-tone"] .gradient-text,
+[data-color-scheme="earth-tone"] .gradient-text.MuiTypography-root {
+  background: linear-gradient(90deg, #A67C52, #C4A484) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+
+[data-color-scheme="green-beige"] .gradient-text,
+[data-color-scheme="green-beige"] .gradient-text.MuiTypography-root {
+  background: linear-gradient(90deg, #6A8D6D, #A0C1A3) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+
+/* 添加呼吸灯效果 */
+@keyframes breathing {
+  0% { box-shadow: 0 0 0 0 rgba(71, 118, 230, 0.7); }
+  50% { box-shadow: 0 0 20px 10px rgba(142, 84, 233, 0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(71, 118, 230, 0.7); }
+}
+
+.breathing-effect {
+  animation: breathing 4s infinite;
+}

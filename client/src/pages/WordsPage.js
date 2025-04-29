@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext'; // 用于检查登录状态和获取 token (通过 apiFetch 自动使用)
 import apiFetch from '../utils/api'; // 引入封装的 apiFetch
+import { memoryColors, earthToneColors, blueGrayColors, greenBeigeColors } from '../theme/themeConfig'; // 引入记忆颜色和主题颜色系统配置
+import { useTheme, COLOR_SCHEMES } from '../context/ThemeContext'; // 引入主题上下文
 
 // 引入 MUI 组件
 import Container from '@mui/material/Container';
@@ -25,13 +27,58 @@ import IconButton from '@mui/material/IconButton';
 import Divider from '@mui/material/Divider';
 import Fade from '@mui/material/Fade';
 import Zoom from '@mui/material/Zoom';
+import Chip from '@mui/material/Chip';
+import Switch from '@mui/material/Switch';
+import FormGroup from '@mui/material/FormGroup';
+import FormControlLabel from '@mui/material/FormControlLabel';
 
 // 导入图标
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import FormatColorFillIcon from '@mui/icons-material/FormatColorFill';
+import TuneIcon from '@mui/icons-material/Tune';
+
+// 辅助函数：将十六进制颜色转换为RGB格式
+const hexToRgb = (hex) => {
+  // 移除可能的#前缀
+  hex = hex.replace('#', '');
+  
+  // 解析RGB值
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  
+  return `${r}, ${g}, ${b}`;
+};
+
+// 词性颜色辅助函数
+const getPOSColor = (pos) => {
+  if (!pos) return null;
+  
+  const posLower = pos.toLowerCase().trim();
+  
+  if (posLower.includes('n') || posLower === 'noun') {
+    return memoryColors.noun;
+  } else if (posLower.includes('v') || posLower === 'verb') {
+    return memoryColors.verb;
+  } else if (posLower.includes('adj') || posLower === 'adjective') {
+    return memoryColors.adj;
+  } else if (posLower.includes('adv') || posLower === 'adverb') {
+    return memoryColors.adv;
+  } else if (posLower.includes('prep') || posLower === 'preposition') {
+    return memoryColors.prep;
+  } else if (posLower.includes('conj') || posLower === 'conjunction') {
+    return memoryColors.conj;
+  }
+  
+  return null;
+};
 
 function WordsPage() {
   const { isAuthenticated } = useAuth(); // 检查用户是否登录，以启用"添加到单词本"功能
+  const { theme, colorScheme } = useTheme(); // 获取当前主题和颜色方案
   const [words, setWords] = useState([]);
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1 });
   const [loading, setLoading] = useState(true);
@@ -45,15 +92,39 @@ function WordsPage() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success'); // 'success' | 'error' | 'info' | 'warning'
+  
+  // 新增视觉设置
+  const [showPOSColoring, setShowPOSColoring] = useState(true); // 默认启用词性颜色
+  const [showImportance, setShowImportance] = useState(false); // 单词重要性标记
+  const [filterByPOS, setFilterByPOS] = useState('all'); // 词性过滤
+
+  // 根据当前主题选择配色方案
+  const getThemeColors = () => {
+    switch(colorScheme) {
+      case COLOR_SCHEMES.BLUE_GRAY:
+        return blueGrayColors;
+      case COLOR_SCHEMES.GREEN_BEIGE:
+        return greenBeigeColors;
+      case COLOR_SCHEMES.EARTH_TONE:
+      default:
+        return earthToneColors;
+    }
+  };
+  
+  // 当前主题的颜色
+  const themeColors = getThemeColors();
 
   // 获取单词列表
-  const fetchWords = useCallback(async (page = 1, search = '') => {
+  const fetchWords = useCallback(async (page = 1, search = '', pos = 'all') => {
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams({ page, limit: 10 }); // 每页显示10个
       if (search) {
         params.append('search', search);
+      }
+      if (pos !== 'all') {
+        params.append('pos', pos);
       }
       const data = await apiFetch(`/api/words?${params.toString()}`);
       setWords(data.words || []);
@@ -86,8 +157,8 @@ function WordsPage() {
 
   // 组件加载时获取初始数据
   useEffect(() => {
-    fetchWords(currentPage, searchTerm);
-  }, [fetchWords, currentPage, searchTerm]); // 依赖项改变时重新获取
+    fetchWords(currentPage, searchTerm, filterByPOS);
+  }, [fetchWords, currentPage, searchTerm, filterByPOS]); // 依赖项改变时重新获取
 
   // 组件加载时获取用户单词书 (仅当用户已登录)
   useEffect(() => {
@@ -99,16 +170,16 @@ function WordsPage() {
     setSearchTerm(event.target.value);
   };
 
-  // 处理搜索提交 (可以改为 debounce 或在输入变化时直接搜索)
+  // 处理搜索提交
   const handleSearchSubmit = () => {
     setCurrentPage(1); // 搜索时回到第一页
-    fetchWords(1, searchTerm);
+    fetchWords(1, searchTerm, filterByPOS);
   };
 
   // 处理分页变化
   const handlePageChange = (event, value) => {
     setCurrentPage(value);
-    fetchWords(value, searchTerm); // 使用新的页码获取数据
+    fetchWords(value, searchTerm, filterByPOS); // 使用新的页码获取数据
     // 滚动到页面顶部
     window.scrollTo({
       top: 0,
@@ -121,21 +192,41 @@ function WordsPage() {
     setSelectedWordbookId(event.target.value);
   };
 
+  // 处理词性过滤变化
+  const handlePOSFilterChange = (pos) => {
+    setFilterByPOS(pos);
+    setCurrentPage(1);
+    fetchWords(1, searchTerm, pos);
+  };
+
   // 显示 Snackbar 提示
-   const showSnackbar = (message, severity = 'success') => {
-       setSnackbarMessage(message);
-       setSnackbarSeverity(severity);
-       setSnackbarOpen(true);
-   };
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
+    setSnackbarOpen(true);
+  };
 
-   // 关闭 Snackbar
-   const handleSnackbarClose = (event, reason) => {
-       if (reason === 'clickaway') {
-           return;
-       }
-       setSnackbarOpen(false);
-   };
+  // 关闭 Snackbar
+  const handleSnackbarClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbarOpen(false);
+  };
 
+  // 获取单词重要性 (根据使用频率、难度等设定)
+  const getWordImportance = (word) => {
+    if (!word) return 0;
+    
+    // 这里可以根据单词属性设置不同重要性级别
+    // 示例判断逻辑，实际应用中可根据特定属性或API返回值设置
+    if (word.frequency && word.frequency < 1000) {
+      return 2; // 高重要性
+    } else if (word.frequency && word.frequency < 3000) {
+      return 1; // 中重要性
+    }
+    return 0; // 标准重要性
+  };
 
   // 处理添加单词到单词书
   const handleAddWord = async (wordId) => {
@@ -145,7 +236,6 @@ function WordsPage() {
     }
     if (!isAuthenticated) {
       showSnackbar('请先登录再添加单词', 'error');
-      // 可以选择跳转到登录页: navigate('/login');
       return;
     }
 
@@ -164,6 +254,72 @@ function WordsPage() {
       setAddWordStatus((prev) => ({ ...prev, [wordId]: { status: 'error', message: errorMessage } }));
       showSnackbar(`添加失败: ${errorMessage}`, 'error');
     }
+  };
+
+  // 渲染词性标签
+  const renderPOSTag = (pos) => {
+    if (!pos || !showPOSColoring) return null;
+    
+    const color = getPOSColor(pos);
+    return (
+      <Chip 
+        label={pos}
+        size="small"
+        sx={{
+          ml: 1,
+          color: '#fff',
+          fontWeight: 600,
+          backgroundColor: color,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}
+      />
+    );
+  };
+
+  // 渲染单词拼写，根据重要性添加颜色
+  const renderWordSpelling = (word) => {
+    if (!showImportance) {
+      return (
+        <Typography 
+          variant="h6" 
+          component="div" 
+          sx={{ 
+            fontWeight: '500',
+            fontSize: '1.1rem'
+          }}
+        >
+          {word.spelling}
+        </Typography>
+      );
+    }
+
+    const importance = getWordImportance(word);
+    let className;
+    
+    switch (importance) {
+      case 2:
+        className = 'importance-high';
+        break;
+      case 1:
+        className = 'importance-medium';
+        break;
+      default:
+        className = 'importance-standard';
+    }
+
+    return (
+      <Typography 
+        variant="h6" 
+        component="div" 
+        className={className}
+        sx={{ 
+          fontWeight: '500',
+          fontSize: '1.1rem'
+        }}
+      >
+        {word.spelling}
+      </Typography>
+    );
   };
 
   return (
@@ -192,37 +348,32 @@ function WordsPage() {
           display: 'flex', 
           alignItems: 'center',
           borderRadius: '50px',
-          mb: 4,
+          mb: 2,
           transition: 'all 0.3s ease',
+          backgroundColor: theme === 'light' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(30, 30, 30, 0.7)', // 根据主题使用不同背景色
+          boxShadow: `0 8px 20px rgba(${hexToRgb(themeColors.accent)}, 0.15)`,
           '&:hover': {
-            boxShadow: '0 8px 20px rgba(142, 84, 233, 0.15)'
+            boxShadow: `0 8px 20px rgba(${hexToRgb(themeColors.accent)}, 0.25)`
           }
         }}
       >
         <InputBase
-          sx={{ ml: 2, flex: 1 }}
+          sx={{ 
+            ml: 2, 
+            flex: 1,
+            color: theme === 'light' ? themeColors.text : '#F3E9DD' // 根据主题使用不同文本颜色
+          }}
           placeholder="搜索单词"
           inputProps={{ 'aria-label': '搜索单词' }}
           value={searchTerm}
           onChange={handleSearchChange}
           onKeyPress={(e) => e.key === 'Enter' && handleSearchSubmit()}
         />
-        <Divider sx={{ height: 28, m: 0.5 }} orientation="vertical" />
         <IconButton 
+          type="button" 
           sx={{ 
-            p: '10px',
-            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-            borderRadius: '50%',
-            color: 'white',
-            mr: 1,
-            transition: 'all 0.3s ease',
-            '&:hover': {
-              transform: 'scale(1.1)',
-              boxShadow: '0 4px 10px rgba(71, 118, 230, 0.3)',
-            },
-            '&:active': {
-              transform: 'scale(0.95)',
-            }
+            p: '10px', 
+            color: themeColors.accent // 使用当前主题的强调色
           }} 
           aria-label="search"
           onClick={handleSearchSubmit}
@@ -230,6 +381,92 @@ function WordsPage() {
           <SearchIcon />
         </IconButton>
       </Paper>
+
+      {/* 新增：过滤和显示选项 */}
+      <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* 词性过滤 */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: { xs: 2, md: 0 } }}>
+          <Chip
+            label="全部" 
+            color={filterByPOS === 'all' ? 'primary' : 'default'}
+            onClick={() => handlePOSFilterChange('all')}
+            sx={{ 
+              transition: 'all 0.3s ease',
+              backgroundColor: filterByPOS === 'all' ? themeColors.accent : undefined,
+              color: filterByPOS === 'all' ? '#fff' : undefined
+            }}
+          />
+          <Chip 
+            label="名词" 
+            color={filterByPOS === 'n' ? 'primary' : 'default'}
+            onClick={() => handlePOSFilterChange('n')}
+            sx={{
+              backgroundColor: filterByPOS === 'n' ? memoryColors.noun : undefined,
+              color: filterByPOS === 'n' ? '#fff' : undefined,
+              transition: 'all 0.3s ease'
+            }}
+          />
+          <Chip 
+            label="动词" 
+            color={filterByPOS === 'v' ? 'primary' : 'default'}
+            onClick={() => handlePOSFilterChange('v')}
+            sx={{
+              backgroundColor: filterByPOS === 'v' ? memoryColors.verb : undefined,
+              color: filterByPOS === 'v' ? '#fff' : undefined,
+              transition: 'all 0.3s ease'
+            }}
+          />
+          <Chip 
+            label="形容词" 
+            color={filterByPOS === 'adj' ? 'primary' : 'default'}
+            onClick={() => handlePOSFilterChange('adj')}
+            sx={{
+              backgroundColor: filterByPOS === 'adj' ? memoryColors.adj : undefined,
+              color: filterByPOS === 'adj' ? '#fff' : undefined,
+              transition: 'all 0.3s ease'
+            }}
+          />
+          <Chip 
+            label="副词" 
+            color={filterByPOS === 'adv' ? 'primary' : 'default'}
+            onClick={() => handlePOSFilterChange('adv')}
+            sx={{
+              backgroundColor: filterByPOS === 'adv' ? memoryColors.adv : undefined,
+              color: filterByPOS === 'adv' ? '#fff' : undefined,
+              transition: 'all 0.3s ease'
+            }}
+          />
+        </Box>
+        
+        {/* 视觉选项 */}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <FormGroup row>
+            <FormControlLabel 
+              control={
+                <Switch 
+                  checked={showPOSColoring} 
+                  onChange={(e) => setShowPOSColoring(e.target.checked)} 
+                  color="primary"
+                  size="small"
+                />
+              } 
+              label="词性着色" 
+              sx={{ mr: 2 }}
+            />
+            <FormControlLabel 
+              control={
+                <Switch 
+                  checked={showImportance} 
+                  onChange={(e) => setShowImportance(e.target.checked)} 
+                  color="primary"
+                  size="small"
+                />
+              } 
+              label="重要性标记" 
+            />
+          </FormGroup>
+        </Box>
+      </Box>
 
       {/* 加载与错误提示 */}
       {loading && (
@@ -243,7 +480,9 @@ function WordsPage() {
           sx={{ 
             marginBottom: 3,
             borderRadius: '12px',
-            animation: 'fadeIn 0.5s ease-out'
+            animation: 'fadeIn 0.5s ease-out',
+            backgroundColor: 'rgba(248, 93, 93, 0.1)', 
+            color: '#F85D5D'
           }}
         >
           {error}
@@ -281,10 +520,10 @@ function WordsPage() {
                   borderRadius: '12px',
                 },
                 '& .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'rgba(142, 84, 233, 0.3)'
+                  borderColor: `rgba(${hexToRgb(themeColors.accent)}, 0.3)`
                 },
                 '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'rgba(142, 84, 233, 0.5)'
+                  borderColor: `rgba(${hexToRgb(themeColors.accent)}, 0.5)`
                 }
               }}
             >
@@ -309,7 +548,7 @@ function WordsPage() {
               sx={{ 
                 marginBottom: 3,
                 borderRadius: '12px',
-                boxShadow: '0 4px 15px rgba(255, 193, 7, 0.15)',
+                boxShadow: '0 4px 15px rgba(248, 195, 93, 0.15)',
                 animation: 'fadeIn 0.5s ease-out'
               }}
             >
@@ -323,10 +562,18 @@ function WordsPage() {
               overflow: 'hidden',
               transition: 'all 0.3s ease',
               '&:hover': {
-                boxShadow: '0 10px 30px rgba(142, 84, 233, 0.15)'
+                boxShadow: `0 10px 30px rgba(${hexToRgb(themeColors.accent)}, 0.15)`
+              },
+              // 直接使用themeColors中的light颜色作为背景色
+              backgroundColor: themeColors.light,
+              // 添加!important确保样式不被MUI的默认样式覆盖
+              '& .MuiList-root': {
+                backgroundColor: `${themeColors.light} !important`,
               }
             }}
             className="card-neumorphic"
+            component={Paper} // 显式指定为Paper组件
+            elevation={0} // 设置elevation为0，这样会使用我们在themeConfig中为elevation0设置的样式
           >
             <List>
               {words.map((word, index) => {
@@ -348,7 +595,7 @@ function WordsPage() {
                         borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
                         transition: 'all 0.3s ease',
                         '&:hover': {
-                          backgroundColor: 'rgba(142, 84, 233, 0.05)',
+                          backgroundColor: theme === 'light' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.2)',
                         },
                         py: 1.5
                       }}
@@ -364,17 +611,17 @@ function WordsPage() {
                               minWidth: '80px',
                               transition: 'all 0.3s ease',
                               ...(isSuccess ? {
-                                background: 'linear-gradient(90deg, #4CAF50, #8BC34A)',
-                                boxShadow: '0 4px 10px rgba(76, 175, 80, 0.3)',
+                                background: '#32CD32',
+                                boxShadow: '0 4px 10px rgba(50, 205, 50, 0.3)',
                                 '&:hover': {
-                                  boxShadow: '0 6px 15px rgba(76, 175, 80, 0.4)',
+                                  boxShadow: '0 6px 15px rgba(50, 205, 50, 0.4)',
                                 }
                               } : {
-                                borderColor: 'rgba(71, 118, 230, 0.5)',
-                                color: '#4776E6',
+                                borderColor: themeColors.accent,
+                                color: themeColors.accent,
                                 '&:hover': {
-                                  borderColor: '#4776E6',
-                                  backgroundColor: 'rgba(71, 118, 230, 0.05)',
+                                  borderColor: themeColors.secondary,
+                                  backgroundColor: `rgba(${hexToRgb(themeColors.accent)}, 0.08)`,
                                   transform: 'translateY(-2px)'
                                 }
                               })
@@ -388,16 +635,11 @@ function WordsPage() {
                     >
                       <ListItemText
                         primary={
-                          <Typography 
-                            variant="h6" 
-                            component="div" 
-                            sx={{ 
-                              fontWeight: '500',
-                              fontSize: '1.1rem'
-                            }}
-                          >
-                            {word.spelling}
-                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {renderWordSpelling(word)}
+                            {/* 词性标签 */}
+                            {renderPOSTag(word.partOfSpeech)}
+                          </Box>
                         }
                         secondary={
                           <>
@@ -406,7 +648,7 @@ function WordsPage() {
                               component="span" 
                               sx={{ 
                                 display: 'block',
-                                color: 'text.secondary', 
+                                color: theme === 'light' ? themeColors.secondaryText : themeColors.border, 
                                 fontStyle: 'italic' 
                               }}
                             >
@@ -415,9 +657,11 @@ function WordsPage() {
                             <Typography 
                               variant="body1" 
                               component="span" 
+                              className={showImportance ? (word.partOfSpeech?.toLowerCase().includes('v') ? 'translation-text' : undefined) : undefined}
                               sx={{ 
                                 display: 'block',
-                                mt: 0.5
+                                mt: 0.5,
+                                color: theme === 'light' ? themeColors.text : themeColors.light
                               }}
                             >
                               {word.meaning}
@@ -460,16 +704,16 @@ function WordsPage() {
                     mx: 0.5,
                     transition: 'all 0.3s ease',
                     '&.Mui-selected': {
-                      background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                      color: 'white',
+                      background: themeColors.accent,
+                      color: '#fff',
                       fontWeight: 'bold',
-                      boxShadow: '0 4px 10px rgba(71, 118, 230, 0.3)',
+                      boxShadow: `0 4px 10px rgba(${hexToRgb(themeColors.accent)}, 0.3)`,
                       '&:hover': {
                         opacity: 0.9,
                       }
                     },
                     '&:hover': {
-                      backgroundColor: 'rgba(71, 118, 230, 0.1)',
+                      backgroundColor: `rgba(${hexToRgb(themeColors.accent)}, 0.1)`,
                       transform: 'translateY(-2px)'
                     }
                   }
@@ -494,7 +738,14 @@ function WordsPage() {
           sx={{ 
             width: '100%',
             borderRadius: '12px',
-            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)'
+            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)',
+            backgroundColor: snackbarSeverity === 'success' 
+              ? '#32CD32' 
+              : snackbarSeverity === 'error'
+                ? '#F85D5D'
+                : snackbarSeverity === 'warning'
+                  ? '#F8C35D'
+                  : '#4BA4F9'
           }}
         >
           {snackbarMessage}

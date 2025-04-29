@@ -12,6 +12,10 @@ const WordSchema = new Schema({
     type: String,
     trim: true
   },
+  partOfSpeech: { // 词性，如 n. (名词), v. (动词), adj. (形容词) 等
+    type: String,
+    trim: true
+  },
   meaning: { // 主要释义 (可以是简单字符串，或更复杂的结构)
     type: String, // 或者: Schema.Types.Mixed
     required: true

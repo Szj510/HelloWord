@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto'); // 引入 crypto 用于生成 token
+const crypto = require('crypto'); // 用于生成随机验证码
 const User = require('../models/User');
 require('dotenv').config({ path: '../.env' });
 const sendEmail = require('../utils/emailSender');
@@ -30,29 +30,26 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
 
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    user.verificationToken = verificationToken; // <-- 直接存储原始 Token
-    user.verificationTokenExpires = Date.now() + 3600000; // 1 hour
+    // 生成6位数字验证码
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationToken = verificationCode;
+    user.verificationTokenExpires = Date.now() + 3600000; // 1小时后过期
 
-    await user.save(); // 保存用户 (包含未验证状态和 token)
+    await user.save(); // 保存用户 (包含未验证状态和验证码)
 
-    // --- V 发送验证邮件 (暂时注释掉实际发送，只打印链接) V ---
-    // 构建验证 URL (根据你的前端路由调整)
-    // 需要在 .env 中定义 FRONTEND_URL=http://localhost:3000
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email/${verificationToken}`;
+    // --- 发送含有验证码的邮件 ---
     const emailSubject = '欢迎注册 HelloWord - 请验证您的邮箱';
-    const emailText = `感谢注册 HelloWord!\n\n请点击以下链接或将其复制到浏览器地址栏以验证您的邮箱:\n${verificationUrl}\n\n此链接将在 1 小时后失效。\n\n如果您没有注册 HelloWord，请忽略此邮件。\n\nHelloWord 团队`;
+    const emailText = `感谢注册 HelloWord!\n\n您的邮箱验证码为: ${verificationCode}\n\n请在应用中输入此验证码完成注册。验证码将在1小时后失效。\n\n如果您没有注册 HelloWord，请忽略此邮件。\n\nHelloWord 团队`;
     const emailHtml = `
         <div style="font-family: sans-serif; line-height: 1.6;">
             <h2>欢迎注册 HelloWord!</h2>
             <p>感谢您的注册。</p>
-            <p>请点击下面的按钮验证您的邮箱地址:</p>
-            <p style="margin: 20px 0;">
-                <a href="${verificationUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">验证邮箱</a>
-            </p>
-            <p>如果按钮无法点击，请将以下链接复制到浏览器地址栏:</p>
-            <p><a href="${verificationUrl}">${verificationUrl}</a></p>
-            <p>此链接将在 <strong>1 小时</strong> 后失效。</p>
+            <p>您的邮箱验证码为:</p>
+            <div style="margin: 20px 0; padding: 10px; background-color: #f5f5f5; border-radius: 5px; text-align: center;">
+                <span style="font-size: 24px; font-weight: bold; letter-spacing: 3px;">${verificationCode}</span>
+            </div>
+            <p>请在应用中输入此验证码完成注册。</p>
+            <p>验证码将在 <strong>1 小时</strong> 后失效。</p>
             <hr/>
             <p style="font-size: 0.9em; color: #666;">如果您没有注册 HelloWord，请忽略此邮件。</p>
             <p style="font-size: 0.9em; color: #666;">HelloWord 团队</p>
@@ -66,13 +63,11 @@ router.post('/register', async (req, res) => {
         html: emailHtml // 发送 HTML 格式邮件
       });
       console.log(`验证邮件已发送至 ${user.email}`);
-      res.status(201).json({ msg: '注册成功！验证邮件已发送至您的邮箱，请查收并点击链接完成验证。' });
+      res.status(201).json({ msg: '注册成功！验证码已发送至您的邮箱，请查收并在验证页面输入。', email: user.email });
 
     } catch (emailError) {
       console.error("发送验证邮件失败:", emailError);
       // 用户已创建，但邮件发送失败
-      // 可以考虑让用户在登录时提示“未验证”并提供“重新发送邮件”的选项
-      // 目前先返回一个更具体的错误给前端（虽然前端目前统一处理）
       res.status(200).json({ // 返回 200 OK 但带有警告信息
           msg: '注册成功，但发送验证邮件失败。请稍后尝试登录或联系支持以重新发送验证邮件。',
           warning: 'Email failed'
@@ -147,7 +142,7 @@ router.post('/login', async (req, res) => {
 
 // --- V 新增: 邮箱验证路由 V ---
 // @route   GET api/auth/verify/:token
-// @desc    验证邮箱 Token
+// @desc    验证邮箱 Token (旧方式 - 通过链接验证)
 // @access  Public
 router.get('/verify/:token', async (req, res) => {
     const verificationToken = req.params.token;
@@ -184,4 +179,107 @@ router.get('/verify/:token', async (req, res) => {
         res.redirect(`${frontendBaseUrl}/verification-failed?reason=server_error`);
     }
 });
+
+// --- 新增: 通过验证码验证邮箱 ---
+// @route   POST api/auth/verify-code
+// @desc    通过验证码验证邮箱
+// @access  Public
+router.post('/verify-code', async (req, res) => {
+    const { email, verificationCode } = req.body;
+    
+    if (!email || !verificationCode) {
+        return res.status(400).json({ msg: '请提供邮箱和验证码' });
+    }
+
+    try {
+        // 1. 查找用户，条件：匹配邮箱和验证码，且验证码未过期
+        const user = await User.findOne({
+            email: email,
+            verificationToken: verificationCode,
+            verificationTokenExpires: { $gt: Date.now() } // 检查过期时间
+        });
+
+        // 2. 如果未找到用户或验证码已过期
+        if (!user) {
+            return res.status(400).json({ msg: '验证失败：无效或已过期的验证码' });
+        }
+
+        // 3. 找到用户，更新用户状态
+        user.isVerified = true;
+        user.verificationToken = undefined; // 清除验证码
+        user.verificationTokenExpires = undefined; // 清除过期时间
+        await user.save();
+
+        console.log(`用户 ${user.email} 邮箱验证成功 (通过验证码)。`);
+
+        // 4. 返回成功信息
+        return res.status(200).json({ msg: '邮箱验证成功！您现在可以登录了。' });
+
+    } catch (err) {
+        console.error('验证码验证过程中出错:', err);
+        return res.status(500).json({ msg: '服务器错误，请稍后重试' });
+    }
+});
+
+// --- 新增: 重新发送验证码 ---
+// @route   POST api/auth/resend-verification
+// @desc    重新发送验证码
+// @access  Public
+router.post('/resend-verification', async (req, res) => {
+    const { email } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({ msg: '请提供邮箱地址' });
+    }
+
+    try {
+        // 1. 查找未验证的用户
+        const user = await User.findOne({ 
+            email: email,
+            isVerified: false
+        });
+
+        if (!user) {
+            return res.status(400).json({ msg: '找不到匹配的未验证用户' });
+        }
+
+        // 2. 生成新的验证码
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        user.verificationToken = verificationCode;
+        user.verificationTokenExpires = Date.now() + 3600000; // 1小时后过期
+        await user.save();
+
+        // 3. 发送新的验证码邮件
+        const emailSubject = 'HelloWord - 您的新验证码';
+        const emailText = `您好！\n\n您的新邮箱验证码为: ${verificationCode}\n\n请在应用中输入此验证码完成验证。验证码将在1小时后失效。\n\n如果您没有请求此验证码，请忽略此邮件。\n\nHelloWord 团队`;
+        const emailHtml = `
+            <div style="font-family: sans-serif; line-height: 1.6;">
+                <h2>您的新验证码</h2>
+                <p>您好！</p>
+                <p>您的邮箱验证码为:</p>
+                <div style="margin: 20px 0; padding: 10px; background-color: #f5f5f5; border-radius: 5px; text-align: center;">
+                    <span style="font-size: 24px; font-weight: bold; letter-spacing: 3px;">${verificationCode}</span>
+                </div>
+                <p>请在应用中输入此验证码完成验证。</p>
+                <p>验证码将在 <strong>1 小时</strong> 后失效。</p>
+                <hr/>
+                <p style="font-size: 0.9em; color: #666;">如果您没有请求此验证码，请忽略此邮件。</p>
+                <p style="font-size: 0.9em; color: #666;">HelloWord 团队</p>
+            </div>`;
+
+        await sendEmail({
+            to: user.email,
+            subject: emailSubject,
+            text: emailText,
+            html: emailHtml
+        });
+
+        res.status(200).json({ msg: '新的验证码已发送至您的邮箱' });
+
+    } catch (err) {
+        console.error('重新发送验证码失败:', err);
+        res.status(500).json({ msg: '服务器错误，请稍后重试' });
+    }
+});
+
 module.exports = router; // 导出路由

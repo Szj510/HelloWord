@@ -11,6 +11,7 @@ const learningRoutes = require('./routes/learning');
 const statisticsRoutes = require('./routes/statistics');
 const planRoutes = require('./routes/plans');
 const notebookRoutes = require('./routes/notebook');
+const { startReminderService } = require('./utils/reminderService');
 
 // 加载环境变量
 dotenv.config();
@@ -40,4 +41,9 @@ app.use('/api/notebook', notebookRoutes);
 
 // 启动服务器
 const PORT = process.env.PORT || 5001; // 使用 .env 或默认 5001
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server started on port ${PORT}`);
+  
+  // 启动提醒服务
+  startReminderService();
+});

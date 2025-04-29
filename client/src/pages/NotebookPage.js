@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiFetch from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { COLOR_SCHEMES } from '../context/ThemeContext';
+import { earthToneColors, blueGrayColors, greenBeigeColors } from '../theme/themeConfig';
 import dayjs from 'dayjs';
 
 // MUI Components
@@ -47,6 +50,25 @@ function NotebookPage() {
     const [error, setError] = useState('');
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
+    
+    // 获取当前主题和配色方案
+    const { colorScheme } = useTheme();
+    
+    // 根据当前主题选择配色方案
+    const getThemeColors = () => {
+        switch(colorScheme) {
+            case COLOR_SCHEMES.BLUE_GRAY:
+                return blueGrayColors;
+            case COLOR_SCHEMES.GREEN_BEIGE:
+                return greenBeigeColors;
+            case COLOR_SCHEMES.EARTH_TONE:
+            default:
+                return earthToneColors;
+        }
+    };
+    
+    // 当前主题的颜色
+    const themeColors = getThemeColors();
 
     // Snackbar state
     const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -181,12 +203,13 @@ function NotebookPage() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                        background: `linear-gradient(90deg, ${themeColors.accent || themeColors.caramelBrown}, ${themeColors.secondary || themeColors.deepMilkTea})`,
                         WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent'
+                        WebkitTextFillColor: 'transparent',
+                        color: themeColors.text || '#3E2723'
                     }}
                 >
-                    <BookmarkIcon sx={{ mr: 1.5, fontSize: '2rem' }} />
+                    <BookmarkIcon sx={{ mr: 1.5, fontSize: '2rem', color: themeColors.accent || themeColors.caramelBrown }} />
                     我的生词本
                 </Typography>
             </Box>
@@ -201,12 +224,12 @@ function NotebookPage() {
                         borderRadius: '50px',
                         py: 1,
                         px: 3,
-                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                        boxShadow: '0 8px 16px rgba(71, 118, 230, 0.3)',
+                        background: `linear-gradient(90deg, ${themeColors.accent || themeColors.caramelBrown}, ${themeColors.secondary || themeColors.deepMilkTea})`,
+                        boxShadow: `0 8px 16px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.3)'}`,
                         fontWeight: 'bold',
                         transition: 'all 0.3s ease',
                         '&:hover': {
-                            boxShadow: '0 12px 20px rgba(71, 118, 230, 0.4)',
+                            boxShadow: `0 12px 20px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.4)'}`,
                             transform: 'translateY(-3px)'
                         },
                     }}
@@ -227,15 +250,16 @@ function NotebookPage() {
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            gap: 2
+                            gap: 2,
+                            backgroundColor: themeColors.light || '#F8F4E9',
                         }}
                     >
-                        <BookmarkIcon sx={{ fontSize: '4rem', color: '#8E54E9', opacity: 0.7 }} />
+                        <BookmarkIcon sx={{ fontSize: '4rem', color: themeColors.accent || '#A67C52', opacity: 0.7 }} />
                         <Typography
                             variant="h6"
                             sx={{
                                 fontWeight: 'medium',
-                                color: 'text.secondary'
+                                color: themeColors.text || '#3E2723'
                             }}
                         >
                             生词本是空的
@@ -243,7 +267,7 @@ function NotebookPage() {
                         <Typography
                             variant="body1"
                             sx={{
-                                color: 'text.secondary',
+                                color: themeColors.text || '#3E2723',
                                 maxWidth: '500px'
                             }}
                         >
@@ -270,16 +294,18 @@ function NotebookPage() {
                             borderRadius: '16px',
                             overflow: 'hidden',
                             position: 'relative',
+                            backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
                             '&::before': {
                                 display: 'none' // 移除默认的分隔线
                             }
                         }}
+                        component={Paper} // 显式指定为Paper组件
                     >
                         <AccordionSummary
                             expandIcon={
                                 <ExpandMoreIcon
                                     sx={{
-                                        color: '#4776E6',
+                                        color: themeColors.accent || '#A67C52',
                                         transition: 'all 0.3s ease'
                                     }}
                                 />
@@ -287,9 +313,9 @@ function NotebookPage() {
                             aria-controls={`${accordionId}-content`}
                             id={`${accordionId}-header`}
                             sx={{
-                                background: 'rgba(71, 118, 230, 0.05)',
+                                background: `rgba(${themeColors.colors ? themeColors.colors.c2 : '210, 180, 140'}, 0.2)`,
                                 '&:hover': {
-                                    background: 'rgba(71, 118, 230, 0.1)'
+                                    background: `rgba(${themeColors.colors ? themeColors.colors.c2 : '210, 180, 140'}, 0.3)`
                                 }
                             }}
                         >
@@ -303,7 +329,7 @@ function NotebookPage() {
                                 <MenuBookIcon
                                     sx={{
                                         mr: 2,
-                                        color: '#4776E6'
+                                        color: themeColors.accent || '#A67C52'
                                     }}
                                 />
                                 <Typography
@@ -311,7 +337,7 @@ function NotebookPage() {
                                         flexShrink: 0,
                                         mr: 2,
                                         fontWeight: 'bold',
-                                        color: '#4776E6'
+                                        color: themeColors.text || '#3E2723'
                                     }}
                                 >
                                     来源: {group.wordbookName || '未知来源'}
@@ -320,9 +346,8 @@ function NotebookPage() {
                                     label={`${group.entries?.length || 0} 个单词`}
                                     size="small"
                                     sx={{
-                                        borderRadius: '16px',
-                                        background: 'rgba(71, 118, 230, 0.1)',
-                                        color: '#4776E6',
+                                        bgcolor: `rgba(${themeColors.colors ? themeColors.colors.c1 : '166, 124, 82'}, 0.1)`,
+                                        color: themeColors.accent || '#A67C52',
                                         fontWeight: 'medium'
                                     }}
                                 />
@@ -346,47 +371,49 @@ function NotebookPage() {
                                             sx={{
                                                 transition: 'all 0.3s ease',
                                                 '&:hover': {
-                                                    backgroundColor: 'rgba(71, 118, 230, 0.05)'
+                                                    backgroundColor: `rgba(${themeColors.colors ? themeColors.colors.c2 : '196, 164, 132'}, 0.1)`
                                                 },
                                                 py: 1.5
                                             }}
-                                            secondaryAction={
+                                            secondaryAction={(
                                                 <Tooltip title="从生词本移除">
                                                     <IconButton
                                                         edge="end"
                                                         aria-label="remove from notebook"
                                                         onClick={() => handleRemoveWord(entry.wordId, entry.spelling)}
                                                         sx={{
-                                                            color: '#f44336',
+                                                            color: themeColors.accent || '#A67C52',
+                                                            opacity: 0.7,
                                                             '&:hover': {
-                                                                backgroundColor: 'rgba(244, 67, 54, 0.1)'
+                                                                backgroundColor: `rgba(${themeColors.colors ? themeColors.colors.c1 : '166, 124, 82'}, 0.1)`,
+                                                                opacity: 1
                                                             }
                                                         }}
                                                     >
                                                         <DeleteOutlineIcon />
                                                     </IconButton>
                                                 </Tooltip>
-                                            }
+                                            )}
                                         >
                                             <ListItemText
-                                                primary={
+                                                primary={(
                                                     <Typography
                                                         variant="subtitle1"
                                                         sx={{
                                                             fontWeight: 'bold',
-                                                            color: '#4776E6'
+                                                            color: themeColors.accent || '#A67C52'
                                                         }}
                                                     >
                                                         {entry.spelling}
                                                     </Typography>
-                                                }
-                                                secondary={
+                                                )}
+                                                secondary={(
                                                     <Box sx={{ mt: 0.5 }}>
                                                         <Typography
                                                             variant="body2"
                                                             component="span"
                                                             sx={{
-                                                                color: '#8E54E9',
+                                                                color: themeColors.secondary || '#C4A484',
                                                                 mr: 1,
                                                                 display: 'inline-flex',
                                                                 alignItems: 'center'
@@ -397,20 +424,24 @@ function NotebookPage() {
                                                                 size="small"
                                                                 sx={{
                                                                     ml: 0.5,
-                                                                    color: '#8E54E9',
+                                                                    color: themeColors.secondary || '#C4A484',
                                                                     '&:hover': {
-                                                                        backgroundColor: 'rgba(142, 84, 233, 0.1)'
+                                                                        backgroundColor: `rgba(${themeColors.colors ? themeColors.colors.c2 : '196, 164, 132'}, 0.1)`
                                                                     }
                                                                 }}
                                                             >
                                                                 <VolumeUpIcon fontSize="small" />
                                                             </IconButton>
                                                         </Typography>
-                                                        <Typography variant="body2" component="span">
+                                                        <Typography 
+                                                            variant="body2" 
+                                                            component="span"
+                                                            sx={{ color: themeColors.text || '#3E2723' }}
+                                                        >
                                                             {entry.meaning || 'N/A'}
                                                         </Typography>
                                                     </Box>
-                                                }
+                                                )}
                                             />
                                         </ListItem>
                                     </Zoom>
@@ -430,14 +461,15 @@ function NotebookPage() {
                     sx: {
                         borderRadius: '16px',
                         boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                        backgroundColor: themeColors.primary || '#F3E9DD'
                     },
                     elevation: 2
                 }}
             >
                 <DialogTitle
                     sx={{
-                        background: 'linear-gradient(135deg, #4776E6, #8E54E9)',
-                        color: 'white',
+                        background: `linear-gradient(135deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                        color: themeColors.light || '#F8F4E9',
                         py: 2,
                     }}
                 >
@@ -471,10 +503,16 @@ function NotebookPage() {
                                 borderRadius: '12px',
                             },
                             '& .MuiOutlinedInput-notchedOutline': {
-                                borderColor: 'rgba(71, 118, 230, 0.3)'
+                                borderColor: `rgba(${themeColors.colors ? themeColors.colors.c1 : '166, 124, 82'}, 0.3)`
                             },
                             '&:hover .MuiOutlinedInput-notchedOutline': {
-                                borderColor: 'rgba(71, 118, 230, 0.5)'
+                                borderColor: `rgba(${themeColors.colors ? themeColors.colors.c1 : '166, 124, 82'}, 0.5)`
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: themeColors.accent || '#A67C52'
+                            },
+                            '& .MuiOutlinedInput-input': {
+                                color: themeColors.text || '#3E2723'
                             }
                         }}
                     />
@@ -484,10 +522,10 @@ function NotebookPage() {
                         onClick={handleCloseExportDialog}
                         disabled={exportLoading}
                         sx={{
-                            color: '#4776E6',
+                            color: themeColors.accent || '#A67C52',
                             borderRadius: '8px',
                             '&:hover': {
-                                backgroundColor: 'rgba(71, 118, 230, 0.08)'
+                                backgroundColor: `rgba(${themeColors.colors ? themeColors.colors.c1 : '166, 124, 82'}, 0.08)`
                             }
                         }}
                     >
@@ -499,11 +537,11 @@ function NotebookPage() {
                         disabled={exportLoading}
                         sx={{
                             borderRadius: '8px',
-                            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                            boxShadow: '0 4px 12px rgba(71, 118, 230, 0.2)',
+                            background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                            boxShadow: `0 4px 12px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.2)'}`,
                             transition: 'all 0.3s ease',
                             '&:hover': {
-                                boxShadow: '0 6px 15px rgba(71, 118, 230, 0.3)',
+                                boxShadow: `0 6px 15px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.3)'}`,
                             }
                         }}
                     >

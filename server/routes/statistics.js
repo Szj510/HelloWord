@@ -4,6 +4,7 @@ const authMiddleware = require('../middleware/auth');
 const LearningRecord = require('../models/LearningRecord');
 const User = require('../models/User');
 const Word = require('../models/Word');
+const WordBook = require('../models/WordBook'); // 新增 WordBook 模型
 const mongoose = require('mongoose');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
@@ -24,20 +25,30 @@ router.get('/overview', authMiddleware, async (req, res) => {
      const userObjectId = new mongoose.Types.ObjectId(userId); // 只转换一次
 
     try {
-        // --- 1. 统计总学习单词数 ---
+        // --- 1. 统计总学习单词数（与单词书计算保持一致） ---
+        // 计算有学习记录的单词数量，无论状态是什么
         const learnedAggregate = await LearningRecord.aggregate([
             { $match: { user: userObjectId } }, // 使用转换后的 ObjectId
             { $group: { _id: '$word' } },
             { $count: 'totalLearnedCount' }
         ]);
         const totalLearnedCount = learnedAggregate.length > 0 ? learnedAggregate[0].totalLearnedCount : 0;
+        console.log(`用户 ${userId} 总已学单词数: ${totalLearnedCount}`);
 
         // --- 2. 统计已掌握单词数 ---
-        const masteredCount = await LearningRecord.countDocuments({ user: userObjectId, status: 'Mastered' });
+        // 修改: 不仅检查状态为'Mastered'，也包括熟悉度至少为3的记录，确保统计已掌握的单词
+        const masteredCount = await LearningRecord.countDocuments({ 
+            user: userObjectId, 
+            $or: [
+                { status: 'Mastered' },
+                { familiarity: { $gte: 3 } } // 假设熟悉度3及以上视为已掌握
+            ]
+        });
+        console.log(`用户 ${userId} 已掌握单词数: ${masteredCount}`);
 
         // --- 3. 统计总学习天数 ---
         const studyDaysAggregate = await LearningRecord.aggregate([
-             // V--- 添加 $match 过滤无效日期 ---V
+            // V--- 添加 $match 过滤无效日期 ---V
             { $match: { user: userObjectId, lastReviewedAt: { $ne: null, $type: "date" } } },
             {
                 $group: {
@@ -52,9 +63,22 @@ router.get('/overview', authMiddleware, async (req, res) => {
         ]);
         const totalStudyDays = studyDaysAggregate.length > 0 ? studyDaysAggregate[0].totalStudyDays : 0;
 
-        // --- 4. 计算总正确率 ---
+        // --- 新增: 4. 统计用户的总单词量 ---
+        // 获取用户所有的单词书
+        const wordbooks = await WordBook.find({ owner: userObjectId }).select('_id');
+        const wordbookIds = wordbooks.map(book => book._id);
+        
+        // 计算所有单词书中的单词总数
+        const totalWordCount = await Word.countDocuments({ 
+            $or: [
+                { wordbooks: { $in: wordbookIds } }, // 在用户的单词书中
+                { _id: { $in: await LearningRecord.distinct('word', { user: userObjectId }) } } // 或者用户学过的单词
+            ]
+        });
+
+        // --- 5. 计算总正确率 ---
         const accuracyAggregate = await LearningRecord.aggregate([
-             // V--- 添加 $match 过滤无效计数字段 (如果可能存在) ---V
+            // V--- 添加 $match 过滤无效计数字段 (如果可能存在) ---V
             { $match: {
                 user: userObjectId,
                 // 确保字段存在且为数字类型，如果担心有脏数据
@@ -80,12 +104,81 @@ router.get('/overview', authMiddleware, async (req, res) => {
             }
         }
 
-        // --- 5. 获取用户注册日期 (不变) ---
+        // --- 6. 计算连续学习天数（当前学习连续性）---
+        // 获取所有学习日期并按降序排列（最近日期在前）
+        const studyDatesAggregate = await LearningRecord.aggregate([
+            { $match: { user: userObjectId, lastReviewedAt: { $ne: null, $type: "date" } } },
+            {
+                $group: {
+                    _id: {
+                        year: { $year: "$lastReviewedAt" },
+                        month: { $month: "$lastReviewedAt" },
+                        day: { $dayOfMonth: "$lastReviewedAt" }
+                    },
+                    date: { $first: "$lastReviewedAt" }
+                }
+            },
+            { $sort: { date: -1 } }, // 降序排序，最近日期在前
+            { $project: { 
+                _id: 0,
+                date: { $dateToString: { format: "%Y-%m-%d", date: "$date" } }
+            }}
+        ]);
+
+        // 将日期字符串转换成日期对象数组
+        const studyDates = studyDatesAggregate.map(item => dayjs(item.date));
+        
+        // 计算当前连续学习天数
+        let currentStreak = 0;
+        const today = dayjs().startOf('day');
+        const yesterday = today.subtract(1, 'day');
+        
+        // 检查今天是否学习了
+        const studiedToday = studyDates.some(date => date.isSame(today, 'day'));
+        
+        // 如果今天学习了，从今天开始计算连续天数
+        // 如果今天没学习，但昨天学习了，从昨天开始计算
+        let checkDate = studiedToday ? today : yesterday;
+        let keepCounting = studiedToday || studyDates.some(date => date.isSame(yesterday, 'day'));
+        
+        // 如果今天或昨天都没学习，连续天数为0
+        if (keepCounting) {
+            currentStreak = studiedToday ? 1 : 0; // 如果今天学习了，初始连续天数为1
+            
+            // 从昨天或前天开始，检查之前的每一天
+            let dayToCheck = studiedToday ? yesterday : yesterday.subtract(1, 'day');
+            
+            while (keepCounting) {
+                // 检查这一天是否有学习记录
+                const studiedOnDay = studyDates.some(date => date.isSame(dayToCheck, 'day'));
+                
+                if (studiedOnDay) {
+                    currentStreak++;
+                    dayToCheck = dayToCheck.subtract(1, 'day');
+                } else {
+                    keepCounting = false;
+                }
+            }
+        }
+
+        // --- 7. 获取用户注册日期 (不变) ---
         const user = await User.findById(userObjectId).select('registerDate');
         const memberSince = user ? user.registerDate : null;
 
-        // 构造响应对象 (不变)
-        const overviewStats = { totalLearnedCount, masteredCount, totalStudyDays, overallAccuracy, memberSince };
+        // --- 8. 获取最近一周的学习建议 ---
+        const suggestions = await generateRecentSuggestions(userObjectId);
+
+        // 构造响应对象 - 统一命名规范
+        const overviewStats = { 
+            totalWordCount,
+            totalLearnedCount, 
+            masteredCount, 
+            learningDays: totalStudyDays, // 改为前端期望的字段名
+            overallAccuracy, 
+            currentStreak,
+            memberSince,
+            suggestions
+        };
         res.json(overviewStats);
 
     } catch (err) {
@@ -270,40 +363,68 @@ router.get('/weak_words', authMiddleware, async (req, res) => {
     }
 });
 
-// --- 获取学习报告数据 (简化版 - 周报) ---
+// --- 获取学习报告数据 (支持多种时间范围) ---
 // @route   GET api/statistics/report
-// @desc    获取指定周期的学习报告摘要数据 (目前仅支持 weekly)
+// @desc    获取指定周期的学习报告摘要数据
 // @access  Private
 router.get('/report', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const userObjectId = new mongoose.Types.ObjectId(userId);
-    // 默认报告类型为 'weekly'
-    const reportType = req.query.type || 'weekly';
-
-    // --- 计算时间范围 (以上周为例) ---
-    // 可以根据需要调整为本周或过去7天
-    // dayjs().day(0) 是上周日， dayjs().day(6) 是本周六
-    // 我们计算上周一到上周日的数据
-    const lastWeekEnd = dayjs.utc().startOf('week').subtract(1, 'day'); // 上周日 23:59:59 UTC
-    const lastWeekStart = lastWeekEnd.subtract(6, 'day').startOf('day'); // 上周一 00:00:00 UTC
-
-    // 如果是 'current_week'
-    // const currentWeekStart = dayjs.utc().startOf('week'); // 本周一
-    // const currentWeekEnd = dayjs.utc().endOf('week');     // 本周日
-
-    const startDate = lastWeekStart.toDate();
-    const endDate = lastWeekEnd.endOf('day').toDate(); // 包含上周日整天
-
-    console.log(`Generating report for user ${userId} from ${startDate} to ${endDate}`); // 调试信息
+    
+    // 支持多种报告类型: weekly(上周), last7days(近7天), thisMonth(本月), allTime(全部)
+    const reportType = req.query.type || 'last7days';
+    
+    // 更灵活的日期范围计算
+    let startDate, endDate, periodTitle;
+    const now = dayjs.utc();
+    
+    switch(reportType) {
+        case 'weekly':
+            // 上周数据
+            const lastWeekEnd = now.startOf('week').subtract(1, 'day'); // 上周日
+            startDate = lastWeekEnd.subtract(6, 'day').startOf('day'); // 上周一
+            endDate = lastWeekEnd.endOf('day'); // 上周日结束
+            periodTitle = '上周总结';
+            break;
+        case 'last7days':
+            // 过去7天
+            endDate = now.endOf('day'); // 今天结束
+            startDate = now.subtract(6, 'day').startOf('day'); // 7天前
+            periodTitle = '近7天';
+            break;
+        case 'thisMonth':
+            // 本月数据 
+            startDate = now.startOf('month');
+            endDate = now.endOf('day');
+            periodTitle = '本月汇总';
+            break;
+        case 'allTime':
+            // 所有历史数据
+            startDate = dayjs('2000-01-01'); // 很久以前的日期
+            endDate = now.endOf('day');
+            periodTitle = '全部记录';
+            break;
+        default:
+            // 默认为近7天
+            endDate = now.endOf('day');
+            startDate = now.subtract(6, 'day').startOf('day');
+            periodTitle = '近7天';
+    }
+    
+    // 转换为Date对象
+    const startDateObj = startDate.toDate();
+    const endDateObj = endDate.toDate();
+    
+    console.log(`Generating ${periodTitle} report for user ${userId} from ${startDateObj} to ${endDateObj}`);
 
     try {
         // --- 在指定时间段内聚合数据 ---
-        const weeklyAggregation = await LearningRecord.aggregate([
+        const periodAggregation = await LearningRecord.aggregate([
             {
-                // 匹配用户和上周的学习记录
+                // 匹配用户和指定时间段的学习记录
                 $match: {
                     user: userObjectId,
-                    lastReviewedAt: { $gte: startDate, $lte: endDate }
+                    lastReviewedAt: { $gte: startDateObj, $lte: endDateObj }
                 }
             },
             {
@@ -311,10 +432,8 @@ router.get('/report', authMiddleware, async (req, res) => {
                 $group: {
                     _id: null, // 聚合所有匹配的记录
                     totalReviews: { $sum: 1 }, // 总复习次数
-                    totalCorrect: { $sum: '$totalCorrect' }, // 累加上周内每次记录的总正确数 (注意: 这不是区间内的正确数)
-                    totalIncorrect: { $sum: '$totalIncorrect' },// 累加上周内每次记录的总错误数 (同上)
-                    // 要计算区间内的正确/错误数，需要在 LearningRecord 的 history 中记录或修改 recordInteraction
-                    // 简化：我们计算区间内的总交互次数
+                    totalCorrect: { $sum: '$totalCorrect' }, // 累加时间段内每次记录的总正确数
+                    totalIncorrect: { $sum: '$totalIncorrect' },// 累加时间段内每次记录的总错误数
                     distinctWordsReviewed: { $addToSet: '$word' } // 添加到集合以统计不同单词
                 }
             },
@@ -322,57 +441,74 @@ router.get('/report', authMiddleware, async (req, res) => {
                  $project: {
                      _id: 0,
                      totalReviews: 1,
-                     // 简化计算周正确率：暂时使用总次数计算（不精确）
-                     // weeklyAccuracy: {
-                     //     $cond: [
-                     //        { $gt: [ { $add: ['$totalCorrect', '$totalIncorrect'] }, 0 ] },
-                     //        { $round: [ { $multiply: [ { $divide: ['$totalCorrect', { $add: ['$totalCorrect', '$totalIncorrect'] }] }, 100 ] } ] },
-                     //        0
-                     //     ]
-                     // },
-                     // 更简单的方式是只报告复习次数和复习的不同单词数
+                     // 计算时间段内的正确率
+                     periodAccuracy: {
+                         $cond: [
+                            { $gt: [ { $add: ['$totalCorrect', '$totalIncorrect'] }, 0 ] },
+                            { $round: [ { $multiply: [ { $divide: ['$totalCorrect', { $add: ['$totalCorrect', '$totalIncorrect'] }] }, 100 ] }, 1 ] },
+                            0
+                         ]
+                     },
                      wordsReviewedCount: { $size: '$distinctWordsReviewed' }
                  }
              }
         ]);
 
         // --- 获取期间内新掌握的单词 ---
-        // 查找状态变为 Mastered 且 updatedAt 在上周内的记录
+        // 查找状态变为 Mastered 且 updatedAt 在指定时间段内的记录
         const masteredRecordsInPeriod = await LearningRecord.find({
              user: userObjectId,
-             status: 'Mastered',
-             updatedAt: { $gte: startDate, $lte: endDate } // 状态更新时间在上周
+             $or: [
+                { status: 'Mastered' },
+                { familiarity: { $gte: 3 } } // 包括熟悉度达到掌握标准的记录
+             ],
+             updatedAt: { $gte: startDateObj, $lte: endDateObj } // 状态更新时间在时间段内
          }).countDocuments(); // 只获取数量
 
-        // --- 获取总体统计数据 (复用之前的逻辑或调用) ---
-        // 为了简单，我们只传递一些基本信息
-        // const overviewData = await fetchOverviewData(userId); // 假设有这样一个函数
-
-        // --- 获取薄弱词 (复用之前的逻辑或调用) ---
-        // 简化：直接获取总的薄弱词列表，不在报告中重新计算
+        // --- 获取薄弱词 (在指定时间段内复习过的单词中查找薄弱词) ---
         const weakWordsData = await LearningRecord.aggregate([
-             // ... (复制 /api/statistics/weak_words 的聚合管道) ...
-             { $match: { user: userObjectId } },
-             { $project: { word: 1, totalAttempts: { $add: ['$totalCorrect', '$totalIncorrect'] }, errorRate: { $cond: [ { $gt: [{ $add: ['$totalCorrect', '$totalIncorrect'] }, 0] }, { $divide: ['$totalIncorrect', { $add: ['$totalCorrect', '$totalIncorrect'] }] }, 0 ] } } },
+             // 先匹配指定用户和时间段内的记录
+             { $match: { 
+                user: userObjectId,
+                lastReviewedAt: { $gte: startDateObj, $lte: endDateObj }
+             }},
+             // 计算总尝试次数和错误率
+             { $project: { 
+                word: 1, 
+                totalAttempts: { $add: ['$totalCorrect', '$totalIncorrect'] }, 
+                errorRate: { 
+                    $cond: [ 
+                        { $gt: [{ $add: ['$totalCorrect', '$totalIncorrect'] }, 0] }, 
+                        { $divide: ['$totalIncorrect', { $add: ['$totalCorrect', '$totalIncorrect'] }] }, 
+                        0 
+                    ] 
+                } 
+             }},
+             // 筛选有足够尝试次数且错误率较高的记录
              { $match: { totalAttempts: { $gte: 3 }, errorRate: { $gt: 0.4 } } },
+             // 按错误率降序排序
              { $sort: { errorRate: -1 } },
-             { $limit: 5 }, // 报告中少显示几个
+             { $limit: 5 },
+             // 关联单词详情
              { $lookup: { from: 'words', localField: 'word', foreignField: '_id', as: 'wordDetails' } },
              { $unwind: { path: "$wordDetails", preserveNullAndEmptyArrays: true } },
              { $project: { _id: 0, spelling: '$wordDetails.spelling', meaning: '$wordDetails.meaning', errorRate: 1 } }
          ]);
 
-
         // --- 构造报告数据 ---
         const reportData = {
             periodType: reportType,
-            startDate: startDate.toISOString().split('T')[0], // YYYY-MM-DD
-            endDate: endDate.toISOString().split('T')[0],   // YYYY-MM-DD
-            summary: weeklyAggregation.length > 0 ? weeklyAggregation[0] : { totalReviews: 0, wordsReviewedCount: 0 },
+            periodTitle: periodTitle,
+            startDate: startDate.format('YYYY-MM-DD'), // 格式化的日期字符串
+            endDate: endDate.format('YYYY-MM-DD'),
+            summary: periodAggregation.length > 0 ? periodAggregation[0] : { totalReviews: 0, periodAccuracy: 0, wordsReviewedCount: 0 },
             masteredInPeriod: masteredRecordsInPeriod,
             topWeakWords: weakWordsData,
-             // TODO: 添加个性化建议 (基于规则)
-             suggestions: generateSuggestions(weeklyAggregation[0], masteredRecordsInPeriod, weakWordsData) // 需要实现 generateSuggestions
+            suggestions: generateSuggestions(
+                periodAggregation.length > 0 ? periodAggregation[0] : { totalReviews: 0, wordsReviewedCount: 0 }, 
+                masteredRecordsInPeriod, 
+                weakWordsData
+            )
         };
 
         res.json(reportData);
@@ -380,6 +516,281 @@ router.get('/report', authMiddleware, async (req, res) => {
     } catch (err) {
         console.error(`生成 ${reportType} 报告错误:`, err.message);
         res.status(500).send('服务器错误');
+    }
+});
+
+// --- 获取每周学习统计数据 ---
+// @route   GET api/statistics/weekly_progress
+// @desc    获取最近四周的学习数据
+// @access  Private
+router.get('/weekly_progress', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    
+    try {
+        const now = dayjs.utc();
+        const weeks = [];
+        
+        // 获取最近四周的开始和结束日期
+        for (let i = 0; i < 4; i++) {
+            const weekEnd = now.subtract(i * 7, 'day').endOf('day');
+            const weekStart = weekEnd.subtract(6, 'day').startOf('day');
+            
+            weeks.push({
+                weekNumber: 4 - i, // 第几周（从最远的开始算）
+                weekName: `第${4-i}周`,
+                startDate: weekStart.toDate(),
+                endDate: weekEnd.toDate()
+            });
+        }
+        
+        // 按周查询和聚合数据
+        const weeklyData = [];
+        
+        for (const week of weeks) {
+            // 查询该周内的学习记录
+            const weekStats = await LearningRecord.aggregate([
+                {
+                    $match: {
+                        user: userObjectId,
+                        lastReviewedAt: { 
+                            $gte: week.startDate,
+                            $lte: week.endDate
+                        }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalReviews: { $sum: 1 }, // 总复习次数
+                        distinctWords: { $addToSet: '$word' }, // 不同的单词
+                        correctCount: { $sum: '$totalCorrect' },
+                        incorrectCount: { $sum: '$totalIncorrect' }
+                    }
+                }
+            ]);
+            
+            // 查询该周内掌握的单词数量（状态变更为Mastered）
+            const masteredCount = await LearningRecord.countDocuments({
+                user: userObjectId,
+                updatedAt: { $gte: week.startDate, $lte: week.endDate },
+                $or: [
+                    { status: 'Mastered' },
+                    { familiarity: { $gte: 3 } }
+                ]
+            });
+            
+            // 整合数据
+            weeklyData.push({
+                week: week.weekName,
+                weekNumber: week.weekNumber,
+                learned: weekStats.length > 0 ? weekStats[0].distinctWords.length : 0,
+                mastered: masteredCount,
+                totalReviews: weekStats.length > 0 ? weekStats[0].totalReviews : 0,
+                startDate: dayjs(week.startDate).format('YYYY-MM-DD'),
+                endDate: dayjs(week.endDate).format('YYYY-MM-DD')
+            });
+        }
+        
+        // 按周数排序（从第一周到第四周）
+        weeklyData.sort((a, b) => a.weekNumber - b.weekNumber);
+        
+        res.json(weeklyData);
+        
+    } catch (err) {
+        console.error('获取每周进度数据错误:', err.message);
+        res.status(500).send('服务器错误');
+    }
+});
+
+// --- 获取单词学习状态分布 ---
+// @route   GET api/statistics/word_distribution
+// @desc    获取当前学习计划中单词的学习状态分布
+// @access  Private
+router.get('/word_distribution', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    
+    try {
+        // 1. 获取用户信息
+        const user = await User.findById(userObjectId);
+        
+        if (!user) {
+            console.log(`用户 ${userId} 不存在`);
+            return res.json({
+                masteredCount: 0,
+                learningCount: 0,
+                notLearnedCount: 0,
+                totalCount: 0
+            });
+        }
+
+        // 2. 尝试获取当前使用的单词书 ID
+        let wordbookId = null;
+        let useAllWordbooks = false; // 新增标志，指示是否使用所有单词书
+        
+        // 首先检查新版计划系统
+        if (user.currentPlanId && user.plans && user.plans.length > 0) {
+            // 在 plans 数组中查找与 currentPlanId 匹配的计划
+            const currentPlan = user.plans.find(plan => 
+                plan._id.toString() === user.currentPlanId.toString()
+            );
+            
+            if (currentPlan && currentPlan.targetWordbook) {
+                wordbookId = currentPlan.targetWordbook;
+                console.log(`用户 ${userId} 使用新版计划系统，单词书ID: ${wordbookId}`);
+            }
+        }
+        
+        // 如果没找到，尝试使用旧版学习计划
+        if (!wordbookId && user.learningPlan && user.learningPlan.isActive && user.learningPlan.targetWordbook) {
+            wordbookId = user.learningPlan.targetWordbook;
+            console.log(`用户 ${userId} 使用旧版学习计划，单词书ID: ${wordbookId}`);
+        }
+        
+        // 如果没有活跃的学习计划，使用用户所有的单词书
+        if (!wordbookId) {
+            useAllWordbooks = true;
+            console.log(`用户 ${userId} 没有活跃学习计划，将使用所有单词书`);
+        }
+        
+        let totalWordsInPlan = 0;
+        let wordIds = [];
+
+        if (useAllWordbooks) {
+            // 获取用户所有的单词书
+            const userWordbooks = await WordBook.find({ owner: userObjectId });
+            
+            if (!userWordbooks || userWordbooks.length === 0) {
+                console.log(`用户 ${userId} 没有任何单词书，尝试导入默认单词书`);
+                
+                // 引入初始化脚本
+                const { importDefaultWordbooks } = require('../seed/initUserWordbooks');
+                
+                // 导入默认单词书
+                await importDefaultWordbooks(userObjectId);
+                
+                // 重新获取单词书
+                const newWordbooks = await WordBook.find({ owner: userObjectId });
+                
+                if (!newWordbooks || newWordbooks.length === 0) {
+                    console.log(`用户 ${userId} 导入默认单词书失败，统计为0`);
+                    return res.json({
+                        masteredCount: 0,
+                        learningCount: 0,
+                        notLearnedCount: 3,  // 默认显示3个未学习单词
+                        totalCount: 3
+                    });
+                }
+                
+                // 使用新导入的单词书，直接从单词书模型中获取words数组
+                let allWordIds = [];
+                for (const wordbook of newWordbooks) {
+                    allWordIds = [...allWordIds, ...(wordbook.words || [])];
+                }
+                
+                // 去重 - 同一个单词可能在多个单词书中出现
+                wordIds = [...new Set(allWordIds.map(id => id.toString()))].map(id => new mongoose.Types.ObjectId(id));
+                totalWordsInPlan = wordIds.length;
+                
+                console.log(`成功为用户 ${userId} 导入默认单词书，共 ${totalWordsInPlan} 个单词`);
+            } else {
+                // 直接从单词书中获取所有单词ID - 修正点：从单词书的words字段获取
+                let allWordIds = [];
+                for (const wordbook of userWordbooks) {
+                    allWordIds = [...allWordIds, ...(wordbook.words || [])];
+                }
+                
+                // 去重 - 同一个单词可能在多个单词书中出现
+                wordIds = [...new Set(allWordIds.map(id => id.toString()))].map(id => new mongoose.Types.ObjectId(id));
+                totalWordsInPlan = wordIds.length;
+                console.log(`用户 ${userId} 的所有单词书中共有 ${totalWordsInPlan} 个单词`);
+            }
+        } else {
+            // 使用特定单词书的逻辑 - 修正点：直接获取单词书对象并从其words字段获取单词ID
+            const wordbook = await WordBook.findById(wordbookId);
+            
+            if (!wordbook) {
+                console.log(`用户 ${userId} 的单词书(ID: ${wordbookId})未找到`);
+                return res.json({
+                    masteredCount: 0,
+                    learningCount: 0,
+                    notLearnedCount: 3,
+                    totalCount: 3
+                });
+            }
+            
+            wordIds = wordbook.words || [];
+            totalWordsInPlan = wordIds.length;
+            console.log(`单词书(ID: ${wordbookId})中共有 ${totalWordsInPlan} 个单词`);
+        }
+        
+        // 如果没有单词，返回默认的统计数据（避免均为0或33.3%的情况）
+        if (totalWordsInPlan === 0) {
+            console.log(`用户 ${userId} 单词书中没有单词，返回默认数据`);
+            return res.json({
+                masteredCount: 0,
+                learningCount: 0,
+                notLearnedCount: 3,  // 默认显示3个未学习单词
+                totalCount: 3
+            });
+        }
+        
+        // 5. 查询用户对这些单词的学习记录
+        const learningRecords = await LearningRecord.find({
+            user: userObjectId,
+            word: { $in: wordIds }
+        });
+        
+        // 6. 创建映射表，记录每个单词的学习状态
+        const wordStatusMap = new Map();
+        
+        learningRecords.forEach(record => {
+            const wordId = record.word.toString();
+            const isMastered = record.status === 'Mastered' || record.familiarity >= 3;
+            
+            // 如果这个单词已经在map中并且已掌握，或者这是第一次遇到这个单词
+            if (!wordStatusMap.has(wordId) || isMastered) {
+                wordStatusMap.set(wordId, isMastered ? 'mastered' : 'learning');
+            }
+        });
+        
+        // 7. 统计各状态单词数量
+        const masteredCount = Array.from(wordStatusMap.values()).filter(status => status === 'mastered').length;
+        const learningCount = wordStatusMap.size - masteredCount;
+        
+        // 8. 计算未学习的单词数量 = 总单词数 - 已学习单词数
+        const notLearnedCount = totalWordsInPlan - wordStatusMap.size;
+        
+        console.log(`单词分布统计: 总计 ${totalWordsInPlan} 词, 已掌握 ${masteredCount} 词, 学习中 ${learningCount} 词, 未学习 ${notLearnedCount} 词`);
+        
+        // 如果所有计数都为0，提供默认值以避免饼图显示为均等3份
+        if (masteredCount === 0 && learningCount === 0 && notLearnedCount === 0) {
+            return res.json({
+                masteredCount: 0,
+                learningCount: 0,
+                notLearnedCount: 3,  // 默认显示3个未学习单词
+                totalCount: 3
+            });
+        }
+        
+        // 返回分布统计
+        res.json({
+            masteredCount,
+            learningCount,
+            notLearnedCount,
+            totalCount: totalWordsInPlan
+        });
+        
+    } catch (err) {
+        console.error('获取单词分布数据错误:', err);
+        // 出现错误时返回默认值，确保前端显示正常
+        res.json({
+            masteredCount: 0,
+            learningCount: 0,
+            notLearnedCount: 3,  // 默认显示3个未学习单词
+            totalCount: 3
+        });
     }
 });
 
@@ -410,6 +821,166 @@ function generateSuggestions(summary, masteredCount, weakWords) {
     }
 
     return suggestions;
+}
+
+// 生成用户最近学习建议
+async function generateRecentSuggestions(userObjectId) {
+    // 获取最近7天的时间范围
+    const now = dayjs.utc();
+    const endDate = now.endOf('day').toDate();
+    const startDate = now.subtract(6, 'day').startOf('day').toDate();
+    
+    try {
+        // 获取近7天的学习统计
+        const recentStats = await LearningRecord.aggregate([
+            { 
+                $match: { 
+                    user: userObjectId,
+                    lastReviewedAt: { $gte: startDate, $lte: endDate }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalReviews: { $sum: 1 },
+                    totalCorrect: { $sum: '$totalCorrect' },
+                    totalIncorrect: { $sum: '$totalIncorrect' },
+                    distinctWords: { $addToSet: '$word' }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    totalReviews: 1,
+                    accuracy: {
+                        $cond: [
+                            { $gt: [ { $add: ['$totalCorrect', '$totalIncorrect'] }, 0 ] },
+                            { $round: [ { $multiply: [ { $divide: ['$totalCorrect', { $add: ['$totalCorrect', '$totalIncorrect'] }] }, 100 ] }, 1 ] },
+                            0
+                        ]
+                    },
+                    distinctWordCount: { $size: '$distinctWords' }
+                }
+            }
+        ]);
+        
+        // 获取连续学习天数
+        const studyDatesAggregate = await LearningRecord.aggregate([
+            { $match: { user: userObjectId, lastReviewedAt: { $ne: null, $type: "date" } } },
+            {
+                $group: {
+                    _id: {
+                        year: { $year: "$lastReviewedAt" },
+                        month: { $month: "$lastReviewedAt" },
+                        day: { $dayOfMonth: "$lastReviewedAt" }
+                    },
+                    date: { $first: "$lastReviewedAt" }
+                }
+            },
+            { $sort: { date: -1 } },
+            { $project: { 
+                _id: 0,
+                date: { $dateToString: { format: "%Y-%m-%d", date: "$date" } }
+            }}
+        ]);
+        
+        // 计算连续学习天数
+        let currentStreak = 0;
+        if (studyDatesAggregate.length > 0) {
+            const studyDates = studyDatesAggregate.map(item => dayjs(item.date));
+            const today = dayjs().startOf('day');
+            const yesterday = today.subtract(1, 'day');
+            
+            const studiedToday = studyDates.some(date => date.isSame(today, 'day'));
+            const studiedYesterday = studyDates.some(date => date.isSame(yesterday, 'day'));
+            
+            if (studiedToday || studiedYesterday) {
+                currentStreak = studiedToday ? 1 : 0;
+                let dayToCheck = studiedToday ? yesterday : yesterday.subtract(1, 'day');
+                let keepChecking = true;
+                
+                while (keepChecking) {
+                    const studiedOnDay = studyDates.some(date => date.isSame(dayToCheck, 'day'));
+                    if (studiedOnDay) {
+                        currentStreak++;
+                        dayToCheck = dayToCheck.subtract(1, 'day');
+                    } else {
+                        keepChecking = false;
+                    }
+                }
+            }
+        }
+        
+        // 获取薄弱单词
+        const weakWords = await LearningRecord.aggregate([
+            { $match: { user: userObjectId } },
+            {
+                $project: {
+                    word: 1,
+                    totalAttempts: { $add: ['$totalCorrect', '$totalIncorrect'] },
+                    errorRate: {
+                        $cond: [
+                            { $gt: [{ $add: ['$totalCorrect', '$totalIncorrect'] }, 0] },
+                            { $divide: ['$totalIncorrect', { $add: ['$totalCorrect', '$totalIncorrect'] }] },
+                            0
+                        ]
+                    }
+                }
+            },
+            { $match: { totalAttempts: { $gte: 3 }, errorRate: { $gt: 0.4 } } },
+            { $sort: { errorRate: -1 } },
+            { $limit: 3 },
+            { $lookup: { from: 'words', localField: 'word', foreignField: '_id', as: 'wordDetails' } },
+            { $unwind: { path: "$wordDetails" } },
+            { $project: { spelling: '$wordDetails.spelling', errorRate: 1 } }
+        ]);
+        
+        // 生成个性化建议
+        const suggestions = [];
+        const stats = recentStats.length > 0 ? recentStats[0] : { totalReviews: 0, accuracy: 0, distinctWordCount: 0 };
+        
+        // 学习频率建议
+        if (stats.totalReviews === 0) {
+            suggestions.push("你已经有一段时间没有学习了，现在是恢复学习的好时机！");
+        } else if (stats.totalReviews < 20) {
+            suggestions.push("增加学习频率可以帮助你更快掌握单词，建议每天至少学习10个单词。");
+        } else if (stats.totalReviews > 200) {
+            suggestions.push("你最近学习非常勤奋，记得适当休息，避免疲劳学习。");
+        }
+        
+        // 学习准确率建议
+        if (stats.accuracy < 60 && stats.totalReviews > 10) {
+            suggestions.push("你的学习准确率有提升空间，可以尝试减慢学习速度，更专注于每个单词。");
+        } else if (stats.accuracy > 90 && stats.totalReviews > 20) {
+            suggestions.push("你的学习准确率很高，可以考虑增加每天学习的新单词数量。");
+        }
+        
+        // 连续学习建议
+        if (currentStreak > 7) {
+            suggestions.push(`你已经连续学习了${currentStreak}天，这是非常棒的习惯，继续保持！`);
+        } else if (currentStreak > 0) {
+            suggestions.push(`你已经连续学习了${currentStreak}天，坚持每天学习可以显著提高记忆效果。`);
+        } else {
+            suggestions.push("每天学习一点点比一次学习很多更有效，尝试建立每日学习习惯。");
+        }
+        
+        // 薄弱词建议
+        if (weakWords && weakWords.length > 0) {
+            const wordList = weakWords.map(w => w.spelling).join('、');
+            suggestions.push(`建议重点复习这些单词：${wordList}，它们是你的薄弱词。`);
+        }
+        
+        // 如果没有足够的个性化建议，添加通用建议
+        if (suggestions.length < 2) {
+            suggestions.push("使用记忆技巧如联想法、故事法可以帮助你更好地记住单词。");
+            suggestions.push("尝试在不同场景中使用新学的单词，这样能加深记忆。");
+        }
+        
+        return suggestions;
+    } catch (err) {
+        console.error('生成学习建议时出错:', err);
+        return ["继续保持学习，形成良好的学习习惯。"];
+    }
 }
 
 // --- (其他路由和 module.exports) ---

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import apiFetch from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { memoryColors } from '../theme/themeConfig';
 
 // MUI 组件
 import Container from '@mui/material/Container';
@@ -32,6 +34,65 @@ import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // 提示图标
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'; // 正确图标
 import CancelIcon from '@mui/icons-material/Cancel'; // 错误图标
 import Grow from '@mui/material/Grow'; // 添加Grow动画效果
+import SettingsIcon from '@mui/icons-material/Settings';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Switch from '@mui/material/Switch';
+import Divider from '@mui/material/Divider';
+import SchoolIcon from '@mui/icons-material/School';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
+
+// 新增：词性颜色显示功能
+const getPOSColor = (pos) => {
+    if (!pos) return null;
+    
+    const posLower = pos.toLowerCase().trim();
+    
+    if (posLower.includes('n') || posLower === 'noun') {
+        return memoryColors.noun;
+    } else if (posLower.includes('v') || posLower === 'verb') {
+        return memoryColors.verb;
+    } else if (posLower.includes('adj') || posLower === 'adjective') {
+        return memoryColors.adj;
+    } else if (posLower.includes('adv') || posLower === 'adverb') {
+        return memoryColors.adv;
+    } else if (posLower.includes('prep') || posLower === 'preposition') {
+        return memoryColors.prep;
+    } else if (posLower.includes('conj') || posLower === 'conjunction') {
+        return memoryColors.conj;
+    }
+    
+    return null;
+};
+
+// 获取记忆层级对应的颜色
+const getMemoryLevelColor = (level) => {
+    if (!level && level !== 0) return memoryColors.memoryLevel1;
+    
+    // 假设记忆层级从0到4
+    switch (Math.min(Math.max(0, level), 4)) {
+        case 0: return memoryColors.memoryLevel1;
+        case 1: return memoryColors.memoryLevel2;
+        case 2: return memoryColors.memoryLevel3;
+        case 3: return memoryColors.memoryLevel4;
+        case 4: return memoryColors.memoryLevel5;
+        default: return memoryColors.memoryLevel1;
+    }
+};
+
+// 根据重要性获取颜色
+const getImportanceColor = (importance) => {
+    if (!importance && importance !== 0) return null;
+    
+    // 假设重要性从0到2，0最低，2最高
+    switch (Math.min(Math.max(0, importance), 2)) {
+        case 0: return memoryColors.subColor;
+        case 1: return memoryColors.mainColor;
+        case 2: return memoryColors.importantTerm;
+        default: return null;
+    }
+};
 
 // 辅助函数：根据状态返回 Chip 的颜色
 const getStatusColor = (status) => {
@@ -49,6 +110,7 @@ function LearningPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, user } = useAuth();
+  const { theme } = useTheme(); // 获取当前主题
   const queryParams = new URLSearchParams(location.search);
   const initialMode = queryParams.get('mode') || 'flashcard'; // 默认为 flashcard
   const initialNewLimit = queryParams.get('newLimit');       // 可以从 URL 传递限制
@@ -68,36 +130,107 @@ function LearningPage() {
   
   const [notebookWordIds, setNotebookWordIds] = useState(new Set()); // 存储生词本中单词 ID 的 Set
   const [loadingNotebookStatus, setLoadingNotebookStatus] = useState(true); // 加载生词本状态
-  const [playingAudio, setPlayingAudio] = useState(false); // 新增：控制发音按钮状态
+  const [playingAudio, setPlayingAudio] = useState(false); // 控制发音按钮状态
     
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  
+  // 新增：会话信息
+  const [sessionInfo, setSessionInfo] = useState({
+    mode: 'mixed',
+    newLimit: 0,
+    reviewLimit: 0,
+    actualNewCount: 0,
+    actualReviewCount: 0,
+    totalCount: 0
+  });
+  
+  // 新增：设置菜单状态
+  const [settingsAnchorEl, setSettingsAnchorEl] = useState(null);
+  const settingsOpen = Boolean(settingsAnchorEl);
+  
+  // 新增：学习模式设置
+  const [focusMode, setFocusMode] = useState(true); // 默认开启专注记忆模式
+  const [showPOS, setShowPOS] = useState(true); // 默认显示词性
+  const [memoryLevelVis, setMemoryLevelVis] = useState(true); // 默认开启记忆层级可视化
+  
   // Snackbar functions
   const showSnackbar = (message, severity = 'success') => { setSnackbarMessage(message); setSnackbarSeverity(severity); setSnackbarOpen(true); };
   const handleSnackbarClose = (event, reason) => { if (reason === 'clickaway') { return; } setSnackbarOpen(false); };
   
+  // 新增：设置菜单处理函数
+  const handleSettingsClick = (event) => {
+    setSettingsAnchorEl(event.currentTarget);
+  };
+  
+  const handleSettingsClose = () => {
+    setSettingsAnchorEl(null);
+  };
+  
+  // 获取会话数据并设置标题
   const fetchLearningSession = useCallback(async () => {
       setLoading(true);
       setError('');
       setWordsToLearn([]); // 清空旧数据
       try {
-          const params = new URLSearchParams({ wordbookId });
-          if (initialNewLimit) params.append('newLimit', initialNewLimit);
-          if (initialReviewLimit) params.append('reviewLimit', initialReviewLimit);
+          // 从location.state中获取模式和限制参数
+          const mode = location.state?.mode || 'new'; // 默认为新词模式
+          
+          // 优先从location.state中获取限制参数，这样可以保证与主页传递的计划参数一致
+          const newLimit = location.state?.newLimit || initialNewLimit;
+          const reviewLimit = location.state?.reviewLimit || initialReviewLimit;
+          
+          console.log(`准备获取学习会话，模式：${mode}，新词限制：${newLimit}，复习词限制：${reviewLimit}`);
+          
+          // 添加mode参数到API请求中
+          const params = new URLSearchParams({ 
+              wordbookId,
+              mode // 关键修改：将mode参数传递给API，确保只获取指定类型的单词
+          });
+          
+          if (newLimit) params.append('newLimit', newLimit);
+          if (reviewLimit) params.append('reviewLimit', reviewLimit);
 
           const data = await apiFetch(`/api/learning/session?${params.toString()}`);
-
+          
+          // 检查API返回的数据结构
           if (data && data.sessionWords && Array.isArray(data.sessionWords)) {
+              console.log(`获取到会话单词数量：${data.sessionWords.length || 0}`);
+              console.log(`会话信息：`, data.sessionInfo || '无会话信息');
+              
+              // 保存会话信息
+              if (data.sessionInfo) {
+                setSessionInfo(data.sessionInfo);
+              }
+              
               if (data.sessionWords.length === 0) {
                   setSessionTitle("任务完成"); // 更新标题
               } else {
+                  // 设置单词学习列表
                   setWordsToLearn(data.sessionWords);
                   setCurrentWordIndex(0);
                   setIsRevealed(false);
                   setFeedback({ show: false, correct: false, message: '' });
                   setSpellingInput('');
-                  setSessionTitle(`学习会话`); // 通用标题
+                  
+                  // 更新会话标题
+                  if (data.sessionInfo && data.sessionInfo.mode) {
+                      switch (data.sessionInfo.mode) {
+                          case 'review':
+                              setSessionTitle('复习单词');
+                              break;
+                          case 'new':
+                              setSessionTitle('学习新单词');
+                              break;
+                          default:
+                              setSessionTitle('学习会话');
+                      }
+                  } else {
+                      // 根据模式设置不同标题
+                      setSessionTitle(mode === 'review' ? '复习单词' : '学习新单词'); 
+                  }
+                  
                   if (learningMode === 'spelling') {
                       setTimeout(() => spellingInputRef.current?.focus(), 0);
                   }
@@ -110,7 +243,7 @@ function LearningPage() {
       } finally {
           setLoading(false);
       }
-  }, [wordbookId, initialNewLimit, initialReviewLimit, learningMode]);
+  }, [wordbookId, initialNewLimit, initialReviewLimit, learningMode, location.state]);
 
   const fetchNotebookIds = useCallback(async () => {
       if (!isAuthenticated) { setLoadingNotebookStatus(false); return; }
@@ -264,6 +397,7 @@ function LearningPage() {
       }
   };
 
+  // 修改goToNextWord函数，在完成所有单词学习后触发自定义事件
   const goToNextWord = () => {
       if (currentWordIndex < wordsToLearn.length - 1) {
           setCurrentWordIndex(currentWordIndex + 1);
@@ -271,10 +405,14 @@ function LearningPage() {
           setSpellingInput('');
           setFeedback({ show: false, correct: false, message: '' });
           setError('');
-           if (learningMode === 'spelling') {
-                setTimeout(() => spellingInputRef.current?.focus(), 0);
-            }
+          if (learningMode === 'spelling') {
+              setTimeout(() => spellingInputRef.current?.focus(), 0);
+          }
       } else {
+          // 当学习完成时，触发自定义事件通知首页更新待复习单词数量
+          window.dispatchEvent(new Event('learning-complete'));
+          console.log("已触发学习完成事件，通知首页更新待复习数量");
+          
           navigate('/wordbooks', { state: { completionMessage: "恭喜！您已完成本轮学习！" } });
       }
   };
@@ -296,6 +434,7 @@ function LearningPage() {
       ? Math.round(((currentWordIndex) / wordsToLearn.length) * 100) 
       : 0;
   
+  // 加载状态
   if (loading) {
       return (
           <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 8 }}>
@@ -315,6 +454,7 @@ function LearningPage() {
       );
   }
   
+  // 错误状态
   if (error) {
       return (
           <Container maxWidth="sm">
@@ -352,6 +492,7 @@ function LearningPage() {
       );
   }
   
+  // 无单词状态
   if (!currentWord && !loading && !error) {
       return (
           <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 8 }}>
@@ -408,30 +549,160 @@ function LearningPage() {
       );
   }
 
+  // 渲染词性标签
+  const renderPOS = (pos) => {
+    if (!showPOS || !pos) return null;
+    
+    const color = getPOSColor(pos);
+    return (
+      <Chip 
+        label={pos}
+        size="small"
+        sx={{
+          ml: 1,
+          color: '#fff',
+          fontWeight: 600,
+          backgroundColor: color,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}
+      />
+    );
+  };
+
+  // 获取当前单词的记忆层级
+  const getWordMemoryLevel = () => {
+    // 这里假设从单词数据中获取记忆层级信息
+    // 如果您的数据结构中有这个字段，请替换为实际的字段名
+    return currentWord?.memoryLevel || 0;
+  };
+
   return (
       <Container maxWidth="sm" className="animate-fade-in">
-          <Box sx={{ mt: 4, mb: 1 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, px: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                      进度: {currentWordIndex + 1} / {wordsToLearn.length}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                      {progressPercentage}%
-                  </Typography>
-              </Box>
-              <LinearProgress 
-                  variant="determinate" 
-                  value={progressPercentage} 
-                  sx={{
-                      height: 8,
-                      borderRadius: 4,
-                      backgroundColor: 'rgba(71, 118, 230, 0.1)',
-                      '& .MuiLinearProgress-bar': {
+          <Box sx={{ mt: 4, mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ flexGrow: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, px: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
+                          进度: {currentWordIndex + 1} / {wordsToLearn.length}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                          {progressPercentage}%
+                      </Typography>
+                  </Box>
+                  <LinearProgress 
+                      variant="determinate" 
+                      value={progressPercentage} 
+                      sx={{
+                          height: 8,
                           borderRadius: 4,
-                          background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                      }
-                  }}
-              />
+                          backgroundColor: 'rgba(71, 118, 230, 0.1)',
+                          '& .MuiLinearProgress-bar': {
+                              borderRadius: 4,
+                              background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                          }
+                      }}
+                  />
+              </Box>
+              
+              {/* 学习进度指示器 */}
+              <Box sx={{ 
+                  position: 'absolute', 
+                  top: 16, 
+                  left: 16, 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  gap: 1,
+                  zIndex: 3
+              }}>
+                  <Tooltip title="今日学习计划" arrow placement="right">
+                      <Chip
+                          icon={<SchoolIcon fontSize="small" />}
+                          label={`${sessionInfo?.completedCount || 0}/${sessionInfo?.totalWords || 0}`}
+                          size="small"
+                          color="primary"
+                          variant={(theme?.palette?.mode || 'light') === 'dark' ? 'outlined' : 'filled'}
+                          sx={{ 
+                              fontWeight: 500,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                              '& .MuiChip-icon': {
+                                  color: 'inherit'
+                              }
+                          }}
+                      />
+                  </Tooltip>
+                  <Tooltip title="新词/复习词" arrow placement="right">
+                      <Chip
+                          icon={<AutorenewIcon fontSize="small" />}
+                          label={`${sessionInfo?.newWordsCount || 0}/${sessionInfo?.reviewWordsCount || 0}`}
+                          size="small"
+                          color="secondary"
+                          variant={(theme?.palette?.mode || 'light') === 'dark' ? 'outlined' : 'filled'}
+                          sx={{ 
+                              fontWeight: 500,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                              '& .MuiChip-icon': {
+                                  color: 'inherit'
+                              }
+                          }}
+                      />
+                  </Tooltip>
+              </Box>
+              
+              {/* 设置按钮 */}
+              <IconButton 
+                onClick={handleSettingsClick}
+              >
+                <SettingsIcon />
+              </IconButton>
+              
+              {/* 设置菜单 */}
+              <Menu
+                anchorEl={settingsAnchorEl}
+                open={settingsOpen}
+                onClose={handleSettingsClose}
+                PaperProps={{
+                  sx: {
+                    mt: 1.5,
+                    borderRadius: 2,
+                    boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
+                    minWidth: 200
+                  }
+                }}
+              >
+                <MenuItem onClick={() => setFocusMode(!focusMode)}>
+                  <FormControlLabel
+                    control={<Switch checked={focusMode} color="primary" />}
+                    label="专注记忆模式"
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{ width: '100%' }}
+                  />
+                </MenuItem>
+                
+                <MenuItem onClick={() => setShowPOS(!showPOS)}>
+                  <FormControlLabel
+                    control={<Switch checked={showPOS} color="primary" />}
+                    label="显示词性标签"
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{ width: '100%' }}
+                  />
+                </MenuItem>
+                
+                <MenuItem onClick={() => setMemoryLevelVis(!memoryLevelVis)}>
+                  <FormControlLabel
+                    control={<Switch checked={memoryLevelVis} color="primary" />}
+                    label="记忆层级可视化"
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{ width: '100%' }}
+                  />
+                </MenuItem>
+                
+                <Divider sx={{ my: 1 }} />
+                
+                <MenuItem onClick={handleSettingsClose}>
+                  <Typography align="center" sx={{ width: '100%' }}>
+                    关闭
+                  </Typography>
+                </MenuItem>
+              </Menu>
           </Box>
 
           <Typography 
@@ -507,298 +778,287 @@ function LearningPage() {
           {currentWord && (
               <Fade in={true} timeout={500}>
                   <Card 
-                      elevation={0} 
-                      className="card-neumorphic" 
-                      sx={{ 
-                          borderRadius: '16px',
+                      sx={{
+                          width: '100%', 
+                          maxWidth: 600,
+                          minHeight: 300,
+                          m: 'auto',
+                          borderRadius: 2,
+                          boxShadow: theme?.palette ? theme.palette.mode === 'dark' ? '0 8px 24px rgba(0, 0, 0, 0.2)' : '0 8px 24px rgba(0, 0, 0, 0.1)' : '0 8px 24px rgba(0, 0, 0, 0.1)',
                           position: 'relative',
                           overflow: 'visible',
-                          transition: 'all 0.3s ease',
-                          '&:hover': {
-                              transform: 'translateY(-5px)',
-                              boxShadow: '0 15px 30px rgba(71, 118, 230, 0.1)'
-                          }
+                          bgcolor: theme?.palette ? theme.palette.background.paper : 'inherit',
+                          border: `1px solid ${theme?.palette ? theme.palette.divider : 'rgba(0, 0, 0, 0.12)'}`,
+                          transition: 'all 0.3s ease'
                       }}
                   >
-                      {currentWord.status && (
-                          <Chip 
-                              label={currentWord.status} 
-                              size="small" 
-                              color={getStatusColor(currentWord.status)} 
+                      {/* 记忆层级指示器 */}
+                      {memoryLevelVis && (
+                          <Box 
                               sx={{ 
                                   position: 'absolute', 
-                                  top: 12, 
-                                  right: 12, 
-                                  zIndex: 1,
-                                  fontWeight: '500',
-                                  boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+                                  top: -5, 
+                                  left: -5,
+                                  width: 12,
+                                  height: 12,
+                                  borderRadius: '50%',
+                                  backgroundColor: getMemoryLevelColor(getWordMemoryLevel()),
+                                  boxShadow: '0 0 8px rgba(0,0,0,0.2)'
                               }}
-                          /> 
+                          />
                       )}
 
-                      <Tooltip 
-                          title={isWordInNotebook ? "从生词本移除" : "添加到生词本"}
-                          placement="left"
-                          TransitionComponent={Zoom}
-                      >
-                          <IconButton
-                              onClick={handleToggleNotebook}
-                              disabled={loadingNotebookStatus || isSubmitting}
-                              color={isWordInNotebook ? "primary" : "default"}
+                      {/* 重要性标记 */}
+                      {currentWord.importance > 0 && (
+                          <Box 
                               sx={{ 
                                   position: 'absolute', 
-                                  top: 8, 
-                                  left: 8, 
-                                  zIndex: 1,
-                                  background: isWordInNotebook ? 'rgba(71, 118, 230, 0.1)' : 'transparent',
-                                  transition: 'all 0.2s ease',
-                                  '&:hover': {
-                                      background: isWordInNotebook ? 'rgba(71, 118, 230, 0.2)' : 'rgba(0, 0, 0, 0.04)'
-                                  }
+                                  top: -5, 
+                                  right: -5,
+                                  p: 0.5,
+                                  borderRadius: '50%',
+                                  backgroundColor: getImportanceColor(currentWord.importance),
+                                  color: '#fff',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  boxShadow: '0 0 8px rgba(0,0,0,0.2)',
+                                  zIndex: 1
                               }}
+                          >
+                              <StarIcon fontSize="small" />
+                          </Box>
+                      )}
+                      
+                      <Box sx={{ 
+                          position: 'absolute', 
+                          top: 10, 
+                          right: 10, 
+                          display: 'flex',
+                          gap: 1
+                      }}>
+                          <IconButton 
+                              size="small" 
+                              onClick={handleToggleNotebook}
+                              disabled={isSubmitting || loadingNotebookStatus}
+                              sx={{ 
+                                  color: isWordInNotebook 
+                                      ? theme?.palette?.mode === 'dark'
+                                          ? 'rgba(255, 215, 0, 0.8)' 
+                                          : 'rgba(255, 193, 7, 1)' 
+                                      : 'inherit' 
+                              }}
+                              title={isWordInNotebook ? "从生词本移除" : "加入生词本"}
                           >
                               {isWordInNotebook ? <StarIcon /> : <StarBorderIcon />}
                           </IconButton>
-                      </Tooltip>
-
-                      {learningMode === 'flashcard' ? (
-                          <Box 
-                              onClick={handleCardClick} 
-                              sx={{ 
-                                  cursor: 'pointer',
-                                  position: 'relative',
-                                  minHeight: 280,
-                                  padding: 3,
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  justifyContent: 'center',
-                                  alignItems: 'center',
-                                  textAlign: 'center',
+                          
+                          <IconButton 
+                              size="small" 
+                              onClick={playAudio}
+                              disabled={playingAudio || !currentWord}
+                              title="听发音"
+                              sx={{
+                                  color: theme?.palette ? theme.palette.primary.main : 'inherit'
                               }}
                           >
-                              <CardContent>
-                                  <Typography 
-                                      variant="h3" 
-                                      component="div" 
-                                      sx={{ 
-                                          mb: 2,
-                                          fontWeight: 'bold',
-                                          color: '#333'
-                                      }}
-                                  >
-                                      {currentWord.spelling}
-                                      <Tooltip title="播放发音" placement="top">
-                                          <IconButton 
-                                              onClick={(e) => { 
-                                                  e.stopPropagation(); 
-                                                  playAudio(); 
-                                              }} 
-                                              color="primary"
-                                              disabled={playingAudio}
-                                              size="small" 
-                                              sx={{ 
-                                                  ml: 1.5,
-                                                  animation: playingAudio ? 'pulse 1s infinite' : 'none'
-                                              }}
-                                          >
-                                              <VolumeUpIcon />
-                                          </IconButton>
-                                      </Tooltip>
-                                  </Typography>
-
-                                  <Collapse in={isRevealed} timeout={500}>
-                                      <Box 
-                                          sx={{ 
-                                              py: 2, 
-                                              px: 3, 
-                                              mt: 2, 
-                                              borderRadius: '12px',
-                                              background: 'rgba(142, 84, 233, 0.05)',
-                                              border: '1px dashed rgba(142, 84, 233, 0.2)'
-                                          }}
-                                      >
-                                          {currentWord.phonetic && (
-                                              <Typography 
-                                                  sx={{ mb: 1.5 }} 
-                                                  color="text.secondary"
-                                                  fontStyle="italic"
-                                              > 
-                                                  [{currentWord.phonetic}] 
-                                              </Typography> 
-                                          )}
-                                          
-                                          <Typography 
-                                              variant="h6" 
-                                              sx={{
-                                                  fontWeight: '500',
-                                                  mb: 2
-                                              }}
-                                          > 
-                                              {currentWord.meaning} 
-                                          </Typography>
-                                          
-                                          {currentWord.examples && currentWord.examples.length > 0 && (
-                                              <Typography 
-                                                  variant="body1" 
-                                                  sx={{
-                                                      fontStyle: 'italic',
-                                                      color: 'text.secondary',
-                                                      borderLeft: '3px solid rgba(142, 84, 233, 0.3)',
-                                                      pl: 2,
-                                                      py: 0.5
-                                                  }}
-                                              > 
-                                                  {currentWord.examples[0].sentence} 
-                                              </Typography> 
-                                          )}
-                                      </Box>
-                                  </Collapse>
-
-                                  {!isRevealed && (
-                                      <Box 
-                                          sx={{ 
-                                              mt: 3, 
-                                              display: 'flex', 
-                                              alignItems: 'center',
-                                              justifyContent: 'center'
-                                          }}
-                                      >
-                                          <HelpOutlineIcon sx={{ mr: 1, color: 'text.secondary', fontSize: '1.2rem' }} />
-                                          <Typography variant="body2" color="text.secondary">
-                                              点击卡片查看详细释义
-                                          </Typography>
-                                      </Box>
-                                  )}
-                              </CardContent>
-                          </Box>
-                      ) : (
-                          <CardContent sx={{ 
-                              minHeight: 280, 
+                              <VolumeUpIcon />
+                          </IconButton>
+                      </Box>
+                      
+                      <CardContent sx={{ pt: 2 }}>
+                          <Box sx={{ 
                               display: 'flex', 
-                              flexDirection: 'column', 
-                              justifyContent: 'center',
-                              alignItems: 'center', 
-                              textAlign: 'center',
-                              p: 4
+                              justifyContent: 'center', 
+                              alignItems: 'center',
+                              mb: 2,
+                              flexWrap: 'wrap'
                           }}>
                               <Typography 
-                                  variant="h5" 
+                                  variant="h4" 
+                                  component="h1"
                                   sx={{ 
-                                      mb: 1.5,
-                                      fontWeight: 'bold',
-                                      color: '#333'
+                                      fontWeight: 700,
+                                      color: theme?.palette ? theme.palette.text.primary : 'inherit',
+                                      textAlign: 'center'
                                   }}
                               >
-                                  {currentWord.meaning}
+                                  {currentWord.spelling}
                               </Typography>
                               
+                              {renderPOS(currentWord.pos)}
+                              
                               {currentWord.phonetic && (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                                      <Typography 
-                                          color="text.secondary"
-                                          fontStyle="italic"
-                                      >
-                                          [{currentWord.phonetic}]
-                                      </Typography>
-                                      
-                                      <Tooltip title="播放发音" placement="top">
-                                          <IconButton 
-                                              onClick={playAudio}
-                                              color="primary"
-                                              disabled={playingAudio}
-                                              size="small" 
-                                              sx={{ 
-                                                  ml: 1,
-                                                  animation: playingAudio ? 'pulse 1s infinite' : 'none'
-                                              }}
-                                          >
-                                              <VolumeUpIcon />
-                                          </IconButton>
-                                      </Tooltip>
-                                  </Box>
+                                  <Typography 
+                                      variant="body2"
+                                      sx={{ 
+                                          ml: 1, 
+                                          color: theme?.palette ? theme.palette.text.secondary : 'inherit' 
+                                      }}
+                                  >
+                                      [{currentWord.phonetic}]
+                                  </Typography>
                               )}
                               
-                              <TextField
-                                  inputRef={spellingInputRef}
-                                  variant="outlined"
-                                  size="medium"
-                                  value={spellingInput}
-                                  onChange={(e) => setSpellingInput(e.target.value)}
-                                  onKeyPress={handleSpellingKeyPress}
-                                  placeholder="输入单词拼写"
-                                  sx={{ 
-                                      mb: 3, 
-                                      width: '90%',
-                                      '& .MuiOutlinedInput-root': {
-                                          borderRadius: '12px',
-                                          '&.Mui-focused': {
-                                              '& fieldset': {
-                                                  borderColor: '#4776E6',
-                                                  borderWidth: '2px'
-                                              }
-                                          }
-                                      }
-                                  }}
-                                  disabled={feedback.show || isSubmitting}
-                                  error={feedback.show && !feedback.correct}
-                                  InputProps={{
-                                      sx: {
-                                          ...(feedback.show && feedback.correct && { 
-                                              '& .MuiOutlinedInput-notchedOutline': { 
-                                                  borderColor: '#4CAF50',
-                                                  borderWidth: '2px'
-                                              } 
-                                          }),
-                                      }
-                                  }}
-                              />
-                              
-                              <Button
-                                  variant="contained"
-                                  onClick={handleCheckSpelling}
-                                  disabled={feedback.show || isSubmitting || !spellingInput.trim()}
+                              {/* 恢复单词状态显示 */}
+                              {currentWord.status && (
+                                  <Chip 
+                                      label={currentWord.status}
+                                      size="small"
+                                      color={getStatusColor(currentWord.status)}
+                                      sx={{
+                                          ml: 1,
+                                          fontWeight: 500,
+                                          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                                      }}
+                                  />
+                              )}
+                          </Box>
+
+                          <Collapse in={learningMode === 'flashcard' ? isRevealed : true}>
+                              <Box sx={{ 
+                                  borderRadius: 2, 
+                                  mt: 2,
+                                  mb: 1,
+                                  px: 2, 
+                                  py: 1, 
+                                  bgcolor: theme?.palette ? 
+                                      theme.palette.mode === 'dark' 
+                                          ? 'rgba(71, 118, 230, 0.08)' 
+                                          : 'rgba(71, 118, 230, 0.05)' 
+                                      : 'rgba(71, 118, 230, 0.05)'
+                              }}>
+                                  <Typography variant="body1" sx={{ color: theme?.palette ? theme.palette.text.primary : 'inherit' }}>
+                                      {currentWord.definition?.split('\n').map((line, i) => (
+                                          <div key={i}>{line}</div>
+                                      ))}
+                                  </Typography>
+                              </Box>
+
+                              {currentWord.example && (
+                                  <Box sx={{ px: 2, position: 'relative', my: 2 }}>
+                                      <Typography 
+                                          variant="body2" 
+                                          sx={{ 
+                                              fontStyle: 'italic',
+                                              color: theme?.palette ? theme.palette.text.secondary : 'inherit',
+                                              pl: 1,
+                                              borderLeft: `3px solid ${theme?.palette ? theme.palette.primary.light : '#4776E6'}`
+                                          }}
+                                      >
+                                          {currentWord.example}
+                                      </Typography>
+                                  </Box>
+                              )}
+                          </Collapse>
+                          
+                          {learningMode === 'flashcard' && !isRevealed && (
+                              <Box 
+                                  onClick={handleCardClick}
                                   sx={{
-                                      borderRadius: '30px',
-                                      px: 4,
-                                      py: 1.2,
-                                      background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                                      fontWeight: 'bold',
-                                      boxShadow: '0 4px 15px rgba(71, 118, 230, 0.3)',
+                                      height: 150,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      borderRadius: 2,
+                                      bgcolor: theme?.palette ? 
+                                          theme.palette.mode === 'dark' 
+                                              ? 'rgba(255, 255, 255, 0.05)' 
+                                              : 'rgba(0, 0, 0, 0.02)' 
+                                          : 'rgba(0, 0, 0, 0.02)',
                                       '&:hover': {
-                                          transform: 'translateY(-2px)',
-                                          boxShadow: '0 6px 20px rgba(71, 118, 230, 0.4)',
-                                      },
-                                      '&.Mui-disabled': {
-                                          background: '#e0e0e0',
-                                          boxShadow: 'none',
-                                          color: '#a0a0a0'
+                                          bgcolor: theme?.palette ? 
+                                              theme.palette.mode === 'dark' 
+                                                  ? 'rgba(255, 255, 255, 0.08)' 
+                                                  : 'rgba(0, 0, 0, 0.04)' 
+                                              : 'rgba(0, 0, 0, 0.04)'
                                       }
                                   }}
                               >
-                                  检查答案
-                              </Button>
-                              
-                              <Collapse in={feedback.show} sx={{ width: '90%', mt: 2 }}>
-                                  <Alert 
-                                      severity={feedback.correct ? 'success' : 'error'}
-                                      icon={feedback.correct ? <CheckCircleIcon fontSize="inherit" /> : <CancelIcon fontSize="inherit" />}
+                                  <Typography 
+                                      variant="body1"
+                                      sx={{ color: theme?.palette ? theme.palette.text.secondary : 'inherit' }}
+                                  >
+                                      点击卡片查看释义
+                                  </Typography>
+                              </Box>
+                          )}
+                          
+                          {learningMode === 'spelling' && (
+                              <Box sx={{ mt: 2 }}>
+                                  <TextField
+                                      fullWidth
+                                      label="拼写这个单词"
+                                      variant="outlined"
+                                      value={spellingInput}
+                                      onChange={(e) => setSpellingInput(e.target.value)}
+                                      onKeyPress={handleSpellingKeyPress}
+                                      disabled={feedback.show || isSubmitting}
+                                      autoComplete="off"
+                                      inputRef={spellingInputRef}
                                       sx={{
-                                          borderRadius: '12px',
-                                          '&.MuiAlert-standardSuccess': {
-                                              backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                                              color: '#357a38'
-                                          },
-                                          '&.MuiAlert-standardError': {
-                                              backgroundColor: 'rgba(211, 47, 47, 0.1)',
-                                              color: '#c62828'
+                                          '& .MuiOutlinedInput-root': {
+                                              borderRadius: '12px',
+                                              bgcolor: theme?.palette ? 
+                                                  theme.palette.mode === 'dark' 
+                                                      ? 'rgba(255, 255, 255, 0.05)' 
+                                                      : 'rgba(255, 255, 255, 0.8)' 
+                                                  : 'rgba(255, 255, 255, 0.8)'
                                           }
                                       }}
-                                  >
-                                      {feedback.message}
-                                  </Alert>
-                              </Collapse>
-                          </CardContent>
-                      )}
+                                  />
+                                  
+                                  <Collapse in={feedback.show}>
+                                      <Box sx={{ 
+                                          mt: 2, 
+                                          p: 2, 
+                                          borderRadius: 2, 
+                                          bgcolor: feedback.correct 
+                                              ? theme?.palette?.mode === 'dark' 
+                                                  ? 'rgba(76, 175, 80, 0.15)'
+                                                  : 'rgba(76, 175, 80, 0.1)'
+                                              : theme?.palette?.mode === 'dark'
+                                                  ? 'rgba(244, 67, 54, 0.15)'
+                                                  : 'rgba(244, 67, 54, 0.1)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                      }}>
+                                          {feedback.correct ? (
+                                              <CheckCircleIcon color="success" sx={{ mr: 1 }} />
+                                          ) : (
+                                              <CancelIcon color="error" sx={{ mr: 1 }} />
+                                          )}
+                                          <Typography color={feedback.correct ? "success" : "error"}>
+                                              {feedback.message}
+                                          </Typography>
+                                      </Box>
+                                  </Collapse>
+                                  
+                                  {!feedback.show && (
+                                      <Button
+                                          variant="contained"
+                                          onClick={handleCheckSpelling}
+                                          disabled={isSubmitting || !spellingInput.trim()}
+                                          fullWidth
+                                          sx={{
+                                              mt: 2,
+                                              py: 1.5,
+                                              borderRadius: '12px',
+                                              background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                              boxShadow: '0 4px 15px rgba(71, 118, 230, 0.3)',
+                                              '&:hover': {
+                                                  background: 'linear-gradient(90deg, #3D68CC, #7D48CC)',
+                                                  boxShadow: '0 6px 20px rgba(71, 118, 230, 0.4)',
+                                              }
+                                          }}
+                                      >
+                                          检查
+                                      </Button>
+                                  )}
+                              </Box>
+                          )}
+                      </CardContent>
                   </Card>
               </Fade>
           )}

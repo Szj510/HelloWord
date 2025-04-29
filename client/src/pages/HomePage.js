@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom'; // 使用 RouterLink
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { COLOR_SCHEMES } from '../context/ThemeContext';
+import { earthToneColors, blueGrayColors, greenBeigeColors } from '../theme/themeConfig';
 import apiFetch from '../utils/api';
 
 // MUI Components
@@ -14,9 +17,23 @@ import Grid from '@mui/material/Grid'; // 使用 Grid 布局
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardActions from '@mui/material/CardActions'; // 卡片操作区域
+import Paper from '@mui/material/Paper'; // 添加Paper组件
+
+// 辅助函数：将十六进制颜色转换为RGB
+const hexToRgb = (hex) => {
+  // 移除可能的#前缀
+  hex = hex.replace('#', '');
+  
+  // 解析RGB值
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  
+  return `${r}, ${g}, ${b}`;
+};
 
 // --- 自定义StatCard组件，添加动画和效果 ---
-const StatCard = ({ title, value, unit = '', icon = null, animationDelay = 0 }) => (
+const StatCard = ({ title, value, unit = '', icon = null, animationDelay = 0, themeColors }) => (
     <Card 
         className="card-glass hover-lift animate-fade-in" 
         sx={{ 
@@ -29,6 +46,7 @@ const StatCard = ({ title, value, unit = '', icon = null, animationDelay = 0 }) 
             transform: 'translateY(20px)',
             position: 'relative',
             overflow: 'hidden',
+            backgroundColor: themeColors.light,
             '&::before': {
                 content: '""',
                 position: 'absolute',
@@ -36,14 +54,14 @@ const StatCard = ({ title, value, unit = '', icon = null, animationDelay = 0 }) 
                 left: 0,
                 width: '100%',
                 height: '4px',
-                background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                background: `linear-gradient(90deg, ${themeColors.secondary}, ${themeColors.accent})`,
             }
         }}
     >
-        {icon && <Box sx={{ mr: 2, color: 'primary.main' }}>{icon}</Box>}
+        {icon && <Box sx={{ mr: 2, color: themeColors.accent }}>{icon}</Box>}
         <Box>
-            <Typography color="text.secondary" sx={{ fontSize: '0.9rem', fontWeight: 500 }}>{title}</Typography>
-            <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }} className="gradient-text">
+            <Typography color={themeColors.text} sx={{ fontSize: '0.9rem', fontWeight: 500 }}>{title}</Typography>
+            <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', color: themeColors.accent }}>
                 {value}{unit}
             </Typography>
         </Box>
@@ -53,6 +71,26 @@ const StatCard = ({ title, value, unit = '', icon = null, animationDelay = 0 }) 
 function HomePage() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    
+    // 获取当前主题和配色方案
+    const { colorScheme } = useTheme();
+    
+    // 根据当前主题选择配色方案
+    const getThemeColors = () => {
+        switch(colorScheme) {
+            case COLOR_SCHEMES.BLUE_GRAY:
+                return blueGrayColors;
+            case COLOR_SCHEMES.GREEN_BEIGE:
+                return greenBeigeColors;
+            case COLOR_SCHEMES.EARTH_TONE:
+            default:
+                return earthToneColors;
+        }
+    };
+    
+    // 当前主题的颜色
+    const themeColors = getThemeColors();
+
     const [overviewStats, setOverviewStats] = useState(null);
     const [dueReviewCount, setDueReviewCount] = useState(0);
     const [loadingStats, setLoadingStats] = useState(true);
@@ -61,6 +99,8 @@ function HomePage() {
     const [errorDue, setErrorDue] = useState('');
     const [currentPlan, setCurrentPlan] = useState(null);
     const [loadingPlan, setLoadingPlan] = useState(true); 
+    const [refreshCounter, setRefreshCounter] = useState(0); // 添加刷新计数器，用于触发重新获取待复习数据
+    const refreshTimerRef = useRef(null); // 添加定时器引用，用于管理定时器
 
     // 获取概览统计
     useEffect(() => {
@@ -76,34 +116,84 @@ function HomePage() {
         fetchOverview();
     }, []); // 加载一次
 
-    // 获取待复习数量
+    // 封装获取待复习数量的函数，便于重复调用
+    const fetchDueWords = useCallback(async () => {
+        setLoadingDue(true);
+        setErrorDue('');
+        try {
+            const data = await apiFetch('/api/learning/due');
+            setDueReviewCount(data?.dueReviewCount || 0);
+            console.log(`已更新待复习单词数量: ${data?.dueReviewCount || 0}`);
+        } catch (err) { 
+            setErrorDue(`获取待复习数量失败: ${err.message}`);
+        } finally { 
+            setLoadingDue(false); 
+        }
+    }, []);
+
+    // 获取待复习数量 - 依赖refreshCounter，当其变化时重新获取数据
     useEffect(() => {
-        const fetchDue = async () => {
-            setLoadingDue(true);
-            setErrorDue('');
-            try {
-                const data = await apiFetch('/api/learning/due');
-                setDueReviewCount(data?.dueReviewCount || 0);
-            } catch (err) { setErrorDue(`获取待复习数量失败: ${err.message}`); }
-            finally { setLoadingDue(false); }
+        fetchDueWords();
+    }, [fetchDueWords, refreshCounter]); 
+
+    // 添加定期刷新逻辑与页面焦点变化时的刷新
+    useEffect(() => {
+        // 每30秒刷新一次待复习单词数量（原来是60秒）
+        refreshTimerRef.current = setInterval(() => {
+            fetchDueWords();
+        }, 30000); 
+        
+        // 页面可见性变化时也刷新数据
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchDueWords();
+            }
         };
-        fetchDue();
-    }, []); // 加载一次
+        
+        // 路由变化时刷新数据
+        const handleRouteChange = () => {
+            fetchDueWords();
+        };
+        
+        // 添加事件监听
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('popstate', handleRouteChange);
+        
+        // 清理函数
+        return () => {
+            if (refreshTimerRef.current) {
+                clearInterval(refreshTimerRef.current);
+            }
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('popstate', handleRouteChange);
+        };
+    }, [fetchDueWords]);
 
     useEffect(() => {
-         const fetchCurrentPlan = async () => {
-             setLoadingPlan(true);
-             try {
-                 const data = await apiFetch('/api/plans/current');
-                 setCurrentPlan(data.plan); // data.plan 可能是 null 或 plan 对象
-             } catch (err) {
-                 console.error("获取当前计划失败:", err);
-                 // 这里可以选择不设置全局错误，因为主页其他部分可能正常
-             } finally {
-                 setLoadingPlan(false);
-             }
-         };
-         fetchCurrentPlan();
+        const fetchCurrentPlan = async () => {
+            setLoadingPlan(true);
+            try {
+                // 尝试获取活动计划
+                const data = await apiFetch('/api/plans/current');
+                if (data.plan) {
+                    setCurrentPlan(data.plan);
+                } else {
+                    // 如果没有活动计划，检查是否有旧格式的计划
+                    const userData = await apiFetch('/api/users/me');
+                    if (userData && userData.learningPlan && userData.learningPlan.isActive) {
+                        setCurrentPlan(userData.learningPlan);
+                    } else {
+                        setCurrentPlan(null);
+                    }
+                }
+            } catch (err) {
+                console.error("获取当前计划失败:", err);
+                // 这里可以选择不设置全局错误，因为主页其他部分可能正常
+            } finally {
+                setLoadingPlan(false);
+            }
+        };
+        fetchCurrentPlan();
     }, []);
     
     const handleLogout = () => { 
@@ -111,13 +201,53 @@ function HomePage() {
         navigate('/login');
     };
 
+    // 跳转到复习页面
     const handleStartReview = () => {
-        navigate('/wordbooks');
+        if (currentPlan && currentPlan.targetWordbook) {
+            // 移除 onComplete 回调函数，避免 DataCloneError
+            navigate(`/learn/${currentPlan.targetWordbook}`, { 
+                state: { 
+                    mode: 'review', // 明确指定为复习模式
+                    reviewLimit: currentPlan.dailyReviewWordsTarget
+                } 
+            });
+        } else {
+            navigate('/wordbooks');
+        }
     };
 
-    const handleStartNew = () => {
-        navigate('/wordbooks');
+    // 跳转到学习新单词页面
+    const handleStartLearning = () => {
+        if (currentPlan && currentPlan.targetWordbook) {
+            // 移除 onComplete 回调函数，避免 DataCloneError
+            navigate(`/learn/${currentPlan.targetWordbook}`, { 
+                state: { 
+                    mode: 'learn',
+                    newLimit: currentPlan.dailyNewWordsTarget
+                } 
+            });
+        } else {
+            navigate('/wordbooks');
+        }
     };
+
+    // 添加自定义事件监听，用于学习页面完成后更新数据
+    useEffect(() => {
+        // 定义事件处理函数
+        const handleLearningComplete = () => {
+            // 立即更新待复习单词数量
+            setRefreshCounter(prev => prev + 1);
+            console.log("学习完成，通过事件更新待复习单词数量");
+        };
+
+        // 添加事件监听
+        window.addEventListener('learning-complete', handleLearningComplete);
+
+        // 清理函数
+        return () => {
+            window.removeEventListener('learning-complete', handleLearningComplete);
+        };
+    }, []);
 
     return (
         <Container maxWidth="lg">
@@ -133,10 +263,8 @@ function HomePage() {
                     fontWeight: 'bold',
                     overflow: 'hidden',
                     display: 'inline-block',
-                    background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent'
-                }} 
+                    color: themeColors.accent,
+                }}
                 className="animate-fade-in"
             >
                 {user ? `欢迎回来, ${user.username || user.email}!` : '主页'}
@@ -149,6 +277,7 @@ function HomePage() {
                     borderRadius: '20px',
                     overflow: 'hidden',
                     mb: 6,
+                    backgroundColor: themeColors.primary,
                     '&::before': {
                         content: '""',
                         position: 'absolute',
@@ -156,7 +285,7 @@ function HomePage() {
                         left: 0,
                         width: '100%',
                         height: '100%',
-                        background: 'linear-gradient(120deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1))',
+                        background: `linear-gradient(120deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1))`,
                         zIndex: -1
                     },
                     '&::after': {
@@ -185,11 +314,13 @@ function HomePage() {
                                 position: 'relative',
                                 overflow: 'hidden',
                                 transition: 'all 0.3s ease',
+                                backgroundColor: `${themeColors.light} !important`, // 添加!important确保样式不被覆盖
                                 '&:hover': {
                                     transform: 'translateY(-5px)',
-                                    boxShadow: '0 15px 30px rgba(71, 118, 230, 0.1)'
+                                    boxShadow: `0 15px 30px rgba(${hexToRgb(themeColors.accent)}, 0.1)`
                                 }
                             }}
+                            component={Paper} // 显式指定为Paper组件
                         >
                             <Box 
                                 sx={{
@@ -198,7 +329,7 @@ function HomePage() {
                                     left: 0,
                                     width: '100%',
                                     height: '5px',
-                                    background: 'linear-gradient(90deg, #4776E6, #8E54E9)'
+                                    background: `linear-gradient(90deg, ${themeColors.secondary}, ${themeColors.tertiary})`,
                                 }}
                             />
                             <CardContent>
@@ -209,7 +340,7 @@ function HomePage() {
                                         display: 'flex', 
                                         alignItems: 'center', 
                                         fontWeight: 'bold',
-                                        color: '#4776E6',
+                                        color: themeColors.accent,
                                         mb: 3
                                     }}
                                 >
@@ -222,7 +353,7 @@ function HomePage() {
                                             width: '40px',
                                             height: '40px',
                                             borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, rgba(71, 118, 230, 0.2), rgba(142, 84, 233, 0.2))',
+                                            background: `linear-gradient(135deg, rgba(${hexToRgb(themeColors.secondary)}, 0.2), rgba(${hexToRgb(themeColors.accent)}, 0.2))`,
                                         }}
                                     >
                                         <span 
@@ -244,13 +375,13 @@ function HomePage() {
                                         severity="info" 
                                         sx={{
                                             mb: 3, 
-                                            background: 'rgba(33, 150, 243, 0.1)',
+                                            background: `rgba(${hexToRgb(themeColors.tertiary)}, 0.1)`,
                                             borderRadius: '12px',
                                             transition: 'all 0.3s ease',
                                             '&:hover': {
-                                                boxShadow: '0 4px 15px rgba(33, 150, 243, 0.2)'
+                                                boxShadow: `0 4px 15px rgba(${hexToRgb(themeColors.tertiary)}, 0.2)`
                                             },
-                                            border: '1px dashed rgba(33, 150, 243, 0.3)'
+                                            border: `1px dashed rgba(${hexToRgb(themeColors.tertiary)}, 0.3)`
                                         }} 
                                         icon={false}
                                     >
@@ -258,18 +389,18 @@ function HomePage() {
                                             <span role="img" aria-label="info" style={{ fontSize: '1.2rem', marginRight: '10px' }}>
                                                 ℹ️
                                             </span>
-                                            <Typography sx={{ fontWeight: 500, fontSize: '1.05rem' }}>
+                                            <Typography sx={{ fontWeight: 500, fontSize: '1.05rem', color: themeColors.text }}>
                                                 当前学习计划
                                             </Typography>
                                         </Box>
                                         <Box sx={{ pl: 4 }}>
-                                            <Typography sx={{ fontWeight: 500, mb: 1, display: 'flex', alignItems: 'center' }}>
-                                                <span style={{ color: '#666', marginRight: '8px' }}>•</span>
-                                                每日新学: <span className="gradient-text" style={{ fontWeight: 'bold', marginLeft: '5px' }}>{currentPlan.dailyNewWordsTarget}词</span>
+                                            <Typography sx={{ fontWeight: 500, mb: 1, display: 'flex', alignItems: 'center', color: themeColors.text }}>
+                                                <span style={{ color: themeColors.tertiary, marginRight: '8px' }}>•</span>
+                                                每日新学: <span style={{ fontWeight: 'bold', marginLeft: '5px', color: themeColors.accent }}>{currentPlan.dailyNewWordsTarget}词</span>
                                             </Typography>
-                                            <Typography sx={{ fontWeight: 500, display: 'flex', alignItems: 'center' }}>
-                                                <span style={{ color: '#666', marginRight: '8px' }}>•</span>
-                                                每日复习: <span className="gradient-text" style={{ fontWeight: 'bold', marginLeft: '5px' }}>{currentPlan.dailyReviewWordsTarget}词</span>
+                                            <Typography sx={{ fontWeight: 500, display: 'flex', alignItems: 'center', color: themeColors.text }}>
+                                                <span style={{ color: themeColors.tertiary, marginRight: '8px' }}>•</span>
+                                                每日复习: <span style={{ fontWeight: 'bold', marginLeft: '5px', color: themeColors.accent }}>{currentPlan.dailyReviewWordsTarget}词</span>
                                             </Typography>
                                         </Box>
                                         <Button 
@@ -278,7 +409,7 @@ function HomePage() {
                                             size="small" 
                                             sx={{
                                                 mt: 2,
-                                                background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                                background: `linear-gradient(90deg, ${themeColors.secondary}, ${themeColors.accent})`,
                                                 color: 'white',
                                                 borderRadius: '20px',
                                                 padding: '3px 15px',
@@ -298,13 +429,13 @@ function HomePage() {
                                         severity="warning" 
                                         sx={{
                                             mb: 3,
-                                            background: 'rgba(255, 193, 7, 0.1)',
+                                            background: `rgba(${hexToRgb(themeColors.accent)}, 0.1)`,
                                             borderRadius: '12px',
                                             transition: 'all 0.3s ease',
                                             '&:hover': {
-                                                boxShadow: '0 4px 15px rgba(255, 193, 7, 0.2)'
+                                                boxShadow: `0 4px 15px rgba(${hexToRgb(themeColors.accent)}, 0.2)`
                                             },
-                                            border: '1px dashed rgba(255, 193, 7, 0.3)'
+                                            border: `1px dashed rgba(${hexToRgb(themeColors.accent)}, 0.3)`
                                         }}
                                         icon={false}
                                     >
@@ -312,11 +443,11 @@ function HomePage() {
                                             <span role="img" aria-label="warning" style={{ fontSize: '1.2rem', marginRight: '10px' }}>
                                                 ⚠️
                                             </span>
-                                            <Typography sx={{ fontWeight: 500, fontSize: '1.05rem' }}>
+                                            <Typography sx={{ fontWeight: 500, fontSize: '1.05rem', color: themeColors.text }}>
                                                 未设置学习计划
                                             </Typography>
                                         </Box>
-                                        <Typography sx={{ pl: 4, mb: 1 }}>
+                                        <Typography sx={{ pl: 4, mb: 1, color: themeColors.text }}>
                                             当前无学习计划，将使用默认设置。设置个人专属学习计划可以提高学习效率！
                                         </Typography>
                                         <Button 
@@ -325,7 +456,7 @@ function HomePage() {
                                             size="small"
                                             sx={{
                                                 mt: 1,
-                                                background: 'linear-gradient(90deg, #FF9800, #FF5722)',
+                                                background: `linear-gradient(90deg, ${themeColors.tertiary}, ${themeColors.accent})`,
                                                 color: 'white',
                                                 borderRadius: '20px',
                                                 padding: '4px 16px',
@@ -356,15 +487,15 @@ function HomePage() {
                                             p: 3,
                                             borderRadius: '16px',
                                             background: dueReviewCount > 0 
-                                                ? 'rgba(71, 118, 230, 0.08)' 
-                                                : 'rgba(76, 175, 80, 0.08)',
+                                                ? `rgba(${hexToRgb(themeColors.secondary)}, 0.15)` 
+                                                : `rgba(${hexToRgb(themeColors.tertiary)}, 0.1)`,
                                             border: dueReviewCount > 0
-                                                ? '1px dashed rgba(71, 118, 230, 0.3)'
-                                                : '1px dashed rgba(76, 175, 80, 0.3)',
+                                                ? `1px dashed rgba(${hexToRgb(themeColors.secondary)}, 0.5)`
+                                                : `1px dashed rgba(${hexToRgb(themeColors.tertiary)}, 0.3)`,
                                             transition: 'all 0.3s ease',
                                             '&:hover': {
                                                 transform: 'translateY(-3px)',
-                                                boxShadow: '0 8px 25px rgba(0, 0, 0, 0.07)'
+                                                boxShadow: `0 8px 25px rgba(${hexToRgb(themeColors.accent)}, 0.15)`
                                             }
                                         }} 
                                         className={dueReviewCount > 0 ? "animate-pulse-slow" : ""}
@@ -375,8 +506,8 @@ function HomePage() {
                                                 height: '50px',
                                                 borderRadius: '50%',
                                                 background: dueReviewCount > 0 
-                                                    ? 'linear-gradient(135deg, rgba(71, 118, 230, 0.2), rgba(142, 84, 233, 0.2))'
-                                                    : 'linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(139, 195, 74, 0.2))',
+                                                    ? `linear-gradient(135deg, rgba(${hexToRgb(themeColors.secondary)}, 0.3), rgba(${hexToRgb(themeColors.accent)}, 0.3))`
+                                                    : `linear-gradient(135deg, rgba(${hexToRgb(themeColors.accent)}, 0.2), rgba(${hexToRgb(themeColors.secondary)}, 0.2))`,
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
@@ -396,12 +527,12 @@ function HomePage() {
                                             </span>
                                         </Box>
                                         <Box>
-                                            <Typography variant="h6" sx={{ fontWeight: 500, mb: 0.5 }}>
+                                            <Typography variant="h6" sx={{ fontWeight: 500, mb: 0.5, color: themeColors.text }}>
                                                 {dueReviewCount > 0 ? '复习提醒' : '已完成今日复习'}
                                             </Typography>
-                                            <Typography variant="body1" color="text.secondary">
+                                            <Typography variant="body1" sx={{ color: themeColors.text }}>
                                                 {dueReviewCount > 0 
-                                                    ? <>当前有 <span className="gradient-text" style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{dueReviewCount}</span> 个单词需要复习</>
+                                                    ? <>当前有 <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: themeColors.accent }}>{dueReviewCount}</span> 个单词需要复习</>
                                                     : '太棒了！你已完成所有待复习的单词'}
                                             </Typography>
                                         </Box>
@@ -412,19 +543,47 @@ function HomePage() {
                                 <Button
                                     size="large"
                                     sx={{
-                                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                        mr: 2,
+                                        background: `linear-gradient(90deg, ${themeColors.tertiary}, ${themeColors.secondary})`,
                                         color: 'white',
                                         borderRadius: '30px',
                                         padding: '10px 30px',
                                         transition: 'all 0.3s ease',
-                                        boxShadow: '0 4px 15px rgba(71, 118, 230, 0.3)',
+                                        boxShadow: `0 4px 15px rgba(${hexToRgb(themeColors.secondary)}, 0.3)`,
                                         '&:hover': {
                                             transform: 'translateY(-3px)',
-                                            boxShadow: '0 8px 25px rgba(71, 118, 230, 0.5)',
+                                            boxShadow: `0 8px 25px rgba(${hexToRgb(themeColors.secondary)}, 0.5)`,
                                         },
                                         '&:active': {
                                             transform: 'translateY(1px)',
-                                            boxShadow: '0 2px 8px rgba(71, 118, 230, 0.3)',
+                                            boxShadow: `0 2px 8px rgba(${hexToRgb(themeColors.secondary)}, 0.3)`,
+                                        },
+                                        '&.Mui-disabled': {
+                                            background: 'linear-gradient(90deg, #ccc, #ddd)',
+                                            boxShadow: 'none'
+                                        }
+                                    }}
+                                    onClick={handleStartLearning}
+                                    disabled={loadingPlan || !currentPlan || !currentPlan.targetWordbook}
+                                >
+                                    开始学习
+                                </Button>
+                                <Button
+                                    size="large"
+                                    sx={{
+                                        background: `linear-gradient(90deg, ${themeColors.secondary}, ${themeColors.accent})`,
+                                        color: 'white',
+                                        borderRadius: '30px',
+                                        padding: '10px 30px',
+                                        transition: 'all 0.3s ease',
+                                        boxShadow: `0 4px 15px rgba(${hexToRgb(themeColors.accent)}, 0.3)`,
+                                        '&:hover': {
+                                            transform: 'translateY(-3px)',
+                                            boxShadow: `0 8px 25px rgba(${hexToRgb(themeColors.accent)}, 0.5)`,
+                                        },
+                                        '&:active': {
+                                            transform: 'translateY(1px)',
+                                            boxShadow: `0 2px 8px rgba(${hexToRgb(themeColors.accent)}, 0.3)`,
                                         },
                                         '&.Mui-disabled': {
                                             background: 'linear-gradient(90deg, #ccc, #ddd)',
@@ -450,11 +609,13 @@ function HomePage() {
                                 position: 'relative',
                                 overflow: 'hidden',
                                 transition: 'all 0.3s ease',
+                                backgroundColor: `${themeColors.light} !important`, // 添加!important确保样式不被覆盖
                                 '&:hover': {
                                     transform: 'translateY(-5px)',
-                                    boxShadow: '0 15px 30px rgba(142, 84, 233, 0.1)'
+                                    boxShadow: `0 15px 30px rgba(${hexToRgb(themeColors.secondary)}, 0.2)`
                                 }
                             }}
+                            component={Paper} // 显式指定为Paper组件
                         >
                             <Box 
                                 sx={{
@@ -463,7 +624,7 @@ function HomePage() {
                                     left: 0,
                                     width: '100%',
                                     height: '5px',
-                                    background: 'linear-gradient(90deg, #8E54E9, #4776E6)'
+                                    background: `linear-gradient(90deg, ${themeColors.tertiary}, ${themeColors.secondary})`,
                                 }}
                             />
                             <CardContent>
@@ -474,7 +635,7 @@ function HomePage() {
                                         display: 'flex', 
                                         alignItems: 'center', 
                                         fontWeight: 'bold',
-                                        color: '#8E54E9',
+                                        color: themeColors.accent,
                                         mb: 3
                                     }}
                                 >
@@ -487,7 +648,7 @@ function HomePage() {
                                             width: '40px',
                                             height: '40px',
                                             borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, rgba(142, 84, 233, 0.2), rgba(71, 118, 230, 0.2))',
+                                            background: `linear-gradient(135deg, rgba(${hexToRgb(themeColors.secondary)}, 0.2), rgba(${hexToRgb(themeColors.accent)}, 0.2))`,
                                         }}
                                     >
                                         <span 
@@ -515,12 +676,12 @@ function HomePage() {
                                                     pt: 4,
                                                     pb: 4,
                                                     borderRadius: '16px', 
-                                                    background: 'rgba(142, 84, 233, 0.08)',
+                                                    background: `rgba(${hexToRgb(themeColors.secondary)}, 0.1)`,
                                                     textAlign: 'center',
                                                     transition: 'all 0.3s ease',
                                                     '&:hover': {
                                                         transform: 'translateY(-5px)',
-                                                        boxShadow: '0 10px 20px rgba(142, 84, 233, 0.2)'
+                                                        boxShadow: `0 10px 20px rgba(${hexToRgb(themeColors.secondary)}, 0.2)`
                                                     }
                                                 }}
                                                 className="animate-fade-in"
@@ -530,20 +691,18 @@ function HomePage() {
                                                     sx={{ 
                                                         fontWeight: 'bold', 
                                                         mb: 1,
-                                                        background: 'linear-gradient(90deg, #8E54E9, #4776E6)',
-                                                        WebkitBackgroundClip: 'text',
-                                                        WebkitTextFillColor: 'transparent'
+                                                        color: themeColors.accent,
                                                     }}
                                                 >
                                                     {overviewStats.totalLearnedCount}
                                                 </Typography>
                                                 <Typography 
-                                                    color="text.secondary" 
                                                     sx={{ 
                                                         fontWeight: 500,
                                                         display: 'flex',
                                                         justifyContent: 'center',
-                                                        alignItems: 'center'
+                                                        alignItems: 'center',
+                                                        color: themeColors.text,
                                                     }}
                                                 >
                                                     <span role="img" aria-label="learned" style={{ marginRight: '5px' }}>
@@ -560,12 +719,12 @@ function HomePage() {
                                                     pt: 4,
                                                     pb: 4,
                                                     borderRadius: '16px', 
-                                                    background: 'rgba(71, 118, 230, 0.08)',
+                                                    background: `rgba(${hexToRgb(themeColors.accent)}, 0.1)`,
                                                     textAlign: 'center',
                                                     transition: 'all 0.3s ease',
                                                     '&:hover': {
                                                         transform: 'translateY(-5px)',
-                                                        boxShadow: '0 10px 20px rgba(71, 118, 230, 0.2)'
+                                                        boxShadow: `0 10px 20px rgba(${hexToRgb(themeColors.accent)}, 0.2)`
                                                     }
                                                 }}
                                                 className="animate-fade-in"
@@ -576,20 +735,18 @@ function HomePage() {
                                                     sx={{ 
                                                         fontWeight: 'bold', 
                                                         mb: 1,
-                                                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                                                        WebkitBackgroundClip: 'text',
-                                                        WebkitTextFillColor: 'transparent'
+                                                        color: themeColors.accent,
                                                     }}
                                                 >
                                                     {overviewStats.masteredCount}
                                                 </Typography>
                                                 <Typography 
-                                                    color="text.secondary" 
                                                     sx={{ 
                                                         fontWeight: 500,
                                                         display: 'flex',
                                                         justifyContent: 'center',
-                                                        alignItems: 'center'
+                                                        alignItems: 'center',
+                                                        color: themeColors.text,
                                                     }}
                                                 >
                                                     <span role="img" aria-label="mastered" style={{ marginRight: '5px' }}>
@@ -605,7 +762,7 @@ function HomePage() {
                                                 sx={{ 
                                                     p: 2, 
                                                     borderRadius: '16px', 
-                                                    background: 'rgba(76, 175, 80, 0.08)',
+                                                    background: `rgba(${hexToRgb(themeColors.tertiary)}, 0.1)`,
                                                     mt: 1,
                                                     textAlign: 'center',
                                                     display: 'flex',
@@ -614,7 +771,7 @@ function HomePage() {
                                                     transition: 'all 0.3s ease',
                                                     '&:hover': {
                                                         transform: 'translateY(-3px)',
-                                                        boxShadow: '0 6px 15px rgba(76, 175, 80, 0.15)'
+                                                        boxShadow: `0 6px 15px rgba(${hexToRgb(themeColors.tertiary)}, 0.15)`
                                                     }
                                                 }}
                                                 className="animate-fade-in"
@@ -631,10 +788,10 @@ function HomePage() {
                                                     🔥
                                                 </span>
                                                 <Box>
-                                                    <Typography variant="h5" sx={{ fontWeight: 'bold' }} className="gradient-text">
+                                                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: themeColors.accent }}>
                                                         {overviewStats.currentStreak || 0}
                                                     </Typography>
-                                                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                                                    <Typography variant="body2" sx={{ fontWeight: 500, color: themeColors.text }}>
                                                         连续学习天数
                                                     </Typography>
                                                 </Box>
@@ -642,7 +799,7 @@ function HomePage() {
                                         </Grid>
                                     </Grid>
                                 ) : (
-                                    <Typography>无法加载统计。</Typography>
+                                    <Typography color={themeColors.text}>无法加载统计。</Typography>
                                 )}
                             </CardContent>
                             <CardActions sx={{ justifyContent: 'center', pb: 3 }}>
@@ -651,19 +808,19 @@ function HomePage() {
                                     to="/statistics"
                                     size="large"
                                     sx={{
-                                        background: 'linear-gradient(90deg, #8E54E9, #4776E6)',
+                                        background: `linear-gradient(90deg, ${themeColors.tertiary}, ${themeColors.secondary})`,
                                         color: 'white',
                                         borderRadius: '30px',
                                         padding: '10px 30px',
                                         transition: 'all 0.3s ease',
-                                        boxShadow: '0 4px 15px rgba(142, 84, 233, 0.3)',
+                                        boxShadow: `0 4px 15px rgba(${hexToRgb(themeColors.secondary)}, 0.3)`,
                                         '&:hover': {
                                             transform: 'translateY(-3px)',
-                                            boxShadow: '0 8px 25px rgba(142, 84, 233, 0.5)',
+                                            boxShadow: `0 8px 25px rgba(${hexToRgb(themeColors.secondary)}, 0.5)`,
                                         },
                                         '&:active': {
                                             transform: 'translateY(1px)',
-                                            boxShadow: '0 2px 8px rgba(142, 84, 233, 0.3)',
+                                            boxShadow: `0 2px 8px rgba(${hexToRgb(themeColors.secondary)}, 0.3)`,
                                         }
                                     }}
                                 >
@@ -683,9 +840,9 @@ function HomePage() {
                     mb: 3,
                     fontWeight: 'bold',
                     display: 'flex',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    color: themeColors.accent,
                 }}
-                className="gradient-text"
             >
                 <span role="img" aria-label="quick access" style={{ marginRight: '10px' }}>🚀</span>
                 快速访问
@@ -707,9 +864,10 @@ function HomePage() {
                             p: 3,
                             textAlign: 'center',
                             cursor: 'pointer',
+                            backgroundColor: themeColors.light,
                             '&:hover': {
                                 transform: 'translateY(-8px)',
-                                boxShadow: '0 15px 30px rgba(71, 118, 230, 0.2)'
+                                boxShadow: `0 15px 30px rgba(${hexToRgb(themeColors.secondary)}, 0.2)`
                             }
                         }}
                         onClick={() => navigate('/wordbooks')}
@@ -719,7 +877,7 @@ function HomePage() {
                                 width: '60px',
                                 height: '60px',
                                 borderRadius: '50%',
-                                background: 'linear-gradient(135deg, rgba(71, 118, 230, 0.2), rgba(142, 84, 233, 0.2))',
+                                background: `linear-gradient(135deg, rgba(${hexToRgb(themeColors.secondary)}, 0.2), rgba(${hexToRgb(themeColors.accent)}, 0.2))`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -728,10 +886,10 @@ function HomePage() {
                         >
                             <span role="img" aria-label="wordbook" style={{ fontSize: '2rem' }}>📚</span>
                         </Box>
-                        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} className="gradient-text">
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1, color: themeColors.accent }}>
                             单词书
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{ color: themeColors.text }}>
                             浏览和管理您的单词书
                         </Typography>
                     </Card>
@@ -751,9 +909,10 @@ function HomePage() {
                             p: 3,
                             textAlign: 'center',
                             cursor: 'pointer',
+                            backgroundColor: themeColors.light,
                             '&:hover': {
                                 transform: 'translateY(-8px)',
-                                boxShadow: '0 15px 30px rgba(142, 84, 233, 0.2)'
+                                boxShadow: `0 15px 30px rgba(${hexToRgb(themeColors.accent)}, 0.2)`
                             }
                         }}
                         onClick={() => navigate('/notebook')}
@@ -763,7 +922,7 @@ function HomePage() {
                                 width: '60px',
                                 height: '60px',
                                 borderRadius: '50%',
-                                background: 'linear-gradient(135deg, rgba(142, 84, 233, 0.2), rgba(71, 118, 230, 0.2))',
+                                background: `linear-gradient(135deg, rgba(${hexToRgb(themeColors.accent)}, 0.2), rgba(${hexToRgb(themeColors.secondary)}, 0.2))`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -772,10 +931,10 @@ function HomePage() {
                         >
                             <span role="img" aria-label="notebook" style={{ fontSize: '2rem' }}>📝</span>
                         </Box>
-                        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} className="gradient-text">
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1, color: themeColors.accent }}>
                             生词本
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{ color: themeColors.text }}>
                             查看您保存的生词
                         </Typography>
                     </Card>
@@ -795,9 +954,10 @@ function HomePage() {
                             p: 3,
                             textAlign: 'center',
                             cursor: 'pointer',
+                            backgroundColor: themeColors.light,
                             '&:hover': {
                                 transform: 'translateY(-8px)',
-                                boxShadow: '0 15px 30px rgba(76, 175, 80, 0.2)'
+                                boxShadow: `0 15px 30px rgba(${hexToRgb(themeColors.tertiary)}, 0.2)`
                             }
                         }}
                         onClick={() => navigate('/plan-settings')}
@@ -807,7 +967,7 @@ function HomePage() {
                                 width: '60px',
                                 height: '60px',
                                 borderRadius: '50%',
-                                background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(139, 195, 74, 0.2))',
+                                background: `linear-gradient(135deg, rgba(${hexToRgb(themeColors.tertiary)}, 0.2), rgba(${hexToRgb(themeColors.secondary)}, 0.2))`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -816,10 +976,10 @@ function HomePage() {
                         >
                             <span role="img" aria-label="plan" style={{ fontSize: '2rem' }}>📅</span>
                         </Box>
-                        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} className="gradient-text">
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1, color: themeColors.accent }}>
                             学习计划
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{ color: themeColors.text }}>
                             设置您的学习目标
                         </Typography>
                     </Card>
@@ -839,9 +999,10 @@ function HomePage() {
                             p: 3,
                             textAlign: 'center',
                             cursor: 'pointer',
+                            backgroundColor: themeColors.light,
                             '&:hover': {
                                 transform: 'translateY(-8px)',
-                                boxShadow: '0 15px 30px rgba(255, 152, 0, 0.2)'
+                                boxShadow: `0 15px 30px rgba(${hexToRgb(themeColors.secondary)}, 0.2)`
                             }
                         }}
                         onClick={() => navigate('/reports')}
@@ -851,7 +1012,7 @@ function HomePage() {
                                 width: '60px',
                                 height: '60px',
                                 borderRadius: '50%',
-                                background: 'linear-gradient(135deg, rgba(255, 152, 0, 0.2), rgba(255, 87, 34, 0.2))',
+                                background: `linear-gradient(135deg, rgba(${hexToRgb(themeColors.secondary)}, 0.2), rgba(${hexToRgb(themeColors.accent)}, 0.2))`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -860,10 +1021,10 @@ function HomePage() {
                         >
                             <span role="img" aria-label="reports" style={{ fontSize: '2rem' }}>📊</span>
                         </Box>
-                        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} className="gradient-text">
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1, color: themeColors.accent }}>
                             学习报告
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{ color: themeColors.text }}>
                             查看学习进度报告
                         </Typography>
                     </Card>

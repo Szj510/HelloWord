@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { COLOR_SCHEMES } from '../context/ThemeContext';
+import { earthToneColors, blueGrayColors, greenBeigeColors } from '../theme/themeConfig';
 
 // MUI组件
 import Container from '@mui/material/Container';
@@ -25,6 +28,25 @@ function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [focusedField, setFocusedField] = useState(null);
+    
+    // 获取当前主题和配色方案
+    const { colorScheme } = useTheme();
+    
+    // 根据当前主题选择配色方案
+    const getThemeColors = () => {
+        switch(colorScheme) {
+            case COLOR_SCHEMES.BLUE_GRAY:
+                return blueGrayColors;
+            case COLOR_SCHEMES.GREEN_BEIGE:
+                return greenBeigeColors;
+            case COLOR_SCHEMES.EARTH_TONE:
+            default:
+                return earthToneColors;
+        }
+    };
+    
+    // 当前主题的颜色
+    const themeColors = getThemeColors();
     
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -86,19 +108,21 @@ function LoginPage() {
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
+                            backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
+                            boxShadow: `0 8px 20px ${themeColors.boxShadow || 'rgba(210, 180, 140, 0.2)'}`,
                         }}
                     >
                         <Avatar 
                             sx={{ 
                                 m: 1, 
                                 bgcolor: 'transparent',
-                                background: 'linear-gradient(135deg, #4776E6, #8E54E9)',
+                                background: `linear-gradient(135deg, ${themeColors.secondary || '#D2B48C'}, ${themeColors.accent || '#A67C52'})`,
                                 width: 56,
                                 height: 56,
-                                boxShadow: '0 8px 16px rgba(142, 84, 233, 0.2)'
+                                boxShadow: `0 8px 16px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.2)'}` 
                             }}
                         >
-                            <LockOutlinedIcon sx={{ color: 'white', fontSize: '28px' }} />
+                            <LockOutlinedIcon sx={{ color: themeColors.light || '#F8F4E9', fontSize: '28px' }} />
                         </Avatar>
                         <Typography 
                             component="h1" 
@@ -108,6 +132,10 @@ function LoginPage() {
                                 mt: 1, 
                                 mb: 3, 
                                 fontWeight: 'bold',
+                                color: themeColors.text || '#3E2723',
+                                background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
                             }}
                         >
                             用户登录
@@ -122,7 +150,7 @@ function LoginPage() {
                                     width: '100%', 
                                     mb: 2,
                                     borderRadius: '12px',
-                                    boxShadow: '0 4px 12px rgba(211, 47, 47, 0.2)'
+                                    boxShadow: `0 4px 12px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.2)'}`
                                 }}
                             >
                                 {error}
@@ -158,27 +186,36 @@ function LoginPage() {
                                             <EmailIcon 
                                                 sx={{ 
                                                     mr: 1, 
-                                                    color: focusedField === 'email' ? '#4776E6' : 'text.secondary'
+                                                    color: focusedField === 'email' ? themeColors.accent || '#A67C52' : themeColors.secondary || '#C4A484'
                                                 }} 
                                             />
                                         ),
                                         sx: {
                                             borderRadius: '12px',
+                                            color: themeColors.text || '#3E2723',
+                                            backgroundColor: `${themeColors.light} !important`, // 使用!important确保背景色不被覆盖
                                         }
                                     }}
                                     sx={{
                                         '& .MuiOutlinedInput-root': {
                                             '& fieldset': {
-                                                borderColor: 'rgba(0, 0, 0, 0.1)',
+                                                borderColor: `rgba(${themeColors.colors ? themeColors.colors.c1 : '166, 124, 82'}, 0.3)`,
                                                 borderRadius: '12px',
                                             },
                                             '&:hover fieldset': {
-                                                borderColor: '#4776E6',
+                                                borderColor: themeColors.accent || '#A67C52',
                                             },
                                             '&.Mui-focused fieldset': {
-                                                borderColor: '#4776E6',
+                                                borderColor: themeColors.accent || '#A67C52',
                                             },
                                         },
+                                        '& .MuiInputLabel-root': {
+                                            color: themeColors.secondary || '#C4A484',
+                                        },
+                                        '& .MuiInputLabel-root.Mui-focused': {
+                                            color: themeColors.accent || '#A67C52',
+                                        },
+                                        backgroundColor: themeColors.light || '#F8F4E9', // 使用light颜色而不是primary，确保在绿色主题下显示正确
                                     }}
                                 />
                             </Box>
@@ -211,27 +248,36 @@ function LoginPage() {
                                             <VpnKeyIcon 
                                                 sx={{ 
                                                     mr: 1, 
-                                                    color: focusedField === 'password' ? '#4776E6' : 'text.secondary' 
+                                                    color: focusedField === 'password' ? themeColors.accent || '#A67C52' : themeColors.secondary || '#C4A484'
                                                 }} 
                                             />
                                         ),
                                         sx: {
                                             borderRadius: '12px',
+                                            color: themeColors.text || '#3E2723',
+                                            backgroundColor: `${themeColors.light} !important`, // 使用!important确保背景色不被覆盖
                                         }
                                     }}
                                     sx={{
                                         '& .MuiOutlinedInput-root': {
                                             '& fieldset': {
-                                                borderColor: 'rgba(0, 0, 0, 0.1)',
+                                                borderColor: `rgba(${themeColors.colors ? themeColors.colors.c1 : '166, 124, 82'}, 0.3)`,
                                                 borderRadius: '12px',
                                             },
                                             '&:hover fieldset': {
-                                                borderColor: '#4776E6',
+                                                borderColor: themeColors.accent || '#A67C52',
                                             },
                                             '&.Mui-focused fieldset': {
-                                                borderColor: '#4776E6',
+                                                borderColor: themeColors.accent || '#A67C52',
                                             },
                                         },
+                                        '& .MuiInputLabel-root': {
+                                            color: themeColors.secondary || '#C4A484',
+                                        },
+                                        '& .MuiInputLabel-root.Mui-focused': {
+                                            color: themeColors.accent || '#A67C52',
+                                        },
+                                        backgroundColor: themeColors.light || '#F8F4E9', // 使用light颜色而不是primary，确保在绿色主题下显示正确
                                     }}
                                 />
                             </Box>
@@ -244,20 +290,20 @@ function LoginPage() {
                                     mt: 3,
                                     mb: 2,
                                     py: 1.5,
-                                    background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                                    color: 'white',
+                                    background: `linear-gradient(90deg, ${themeColors.secondary || '#D2B48C'}, ${themeColors.accent || '#A67C52'})`,
+                                    color: themeColors.light || '#F8F4E9',
                                     borderRadius: '12px',
                                     fontWeight: 'bold',
                                     fontSize: '1rem',
                                     textTransform: 'none',
                                     transition: 'all 0.3s ease',
-                                    boxShadow: '0 8px 15px rgba(71, 118, 230, 0.25)',
+                                    boxShadow: `0 8px 15px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.25)'}`,
                                     '&:hover': {
-                                        boxShadow: '0 12px 20px rgba(71, 118, 230, 0.35)',
+                                        boxShadow: `0 12px 20px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.35)'}`,
                                         transform: 'translateY(-3px)'
                                     },
                                     '&:active': {
-                                        boxShadow: '0 5px 10px rgba(71, 118, 230, 0.2)',
+                                        boxShadow: `0 5px 10px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.2)'}`,
                                         transform: 'translateY(0)'
                                     }
                                 }}
@@ -272,11 +318,11 @@ function LoginPage() {
                                         to="/forgot-password" 
                                         variant="body2"
                                         sx={{
-                                            color: '#4776E6',
+                                            color: themeColors.accent || '#A67C52',
                                             textDecoration: 'none',
                                             position: 'relative',
                                             '&:hover': {
-                                                color: '#8E54E9'
+                                                color: themeColors.secondary || '#C4A484'
                                             },
                                             '&::after': {
                                                 content: '""',
@@ -285,7 +331,7 @@ function LoginPage() {
                                                 height: '2px',
                                                 bottom: '-2px',
                                                 left: 0,
-                                                background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                                background: `linear-gradient(90deg, ${themeColors.secondary || '#D2B48C'}, ${themeColors.accent || '#A67C52'})`,
                                                 transformOrigin: 'left',
                                                 transform: 'scaleX(0)',
                                                 transition: 'transform 0.3s ease'
@@ -304,11 +350,11 @@ function LoginPage() {
                                         to="/register" 
                                         variant="body2"
                                         sx={{
-                                            color: '#4776E6',
+                                            color: themeColors.accent || '#A67C52',
                                             textDecoration: 'none',
                                             position: 'relative',
                                             '&:hover': {
-                                                color: '#8E54E9'
+                                                color: themeColors.secondary || '#C4A484'
                                             },
                                             '&::after': {
                                                 content: '""',
@@ -317,7 +363,7 @@ function LoginPage() {
                                                 height: '2px',
                                                 bottom: '-2px',
                                                 left: 0,
-                                                background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                                background: `linear-gradient(90deg, ${themeColors.secondary || '#D2B48C'}, ${themeColors.accent || '#A67C52'})`,
                                                 transformOrigin: 'left',
                                                 transform: 'scaleX(0)',
                                                 transition: 'transform 0.3s ease'
@@ -341,7 +387,7 @@ function LoginPage() {
                             width: '150px',
                             height: '150px',
                             borderRadius: '50%',
-                            background: 'linear-gradient(135deg, rgba(71, 118, 230, 0.5), rgba(142, 84, 233, 0.5))',
+                            background: `linear-gradient(135deg, rgba(${themeColors.colors ? themeColors.colors.c2 : '210, 180, 140'}, 0.5), rgba(${themeColors.colors ? themeColors.colors.c1 : '166, 124, 82'}, 0.5))`,
                             filter: 'blur(40px)',
                             top: '-50px',
                             right: '-80px',
@@ -355,7 +401,7 @@ function LoginPage() {
                             width: '120px',
                             height: '120px',
                             borderRadius: '50%',
-                            background: 'linear-gradient(135deg, rgba(142, 84, 233, 0.5), rgba(71, 118, 230, 0.5))',
+                            background: `linear-gradient(135deg, rgba(${themeColors.colors ? themeColors.colors.c1 : '166, 124, 82'}, 0.5), rgba(${themeColors.colors ? themeColors.colors.c2 : '196, 164, 132'}, 0.5))`,
                             filter: 'blur(40px)',
                             bottom: '-40px',
                             left: '-60px',

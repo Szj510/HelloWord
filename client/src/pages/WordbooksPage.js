@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import apiFetch from '../utils/api';
+import { useTheme } from '../context/ThemeContext';
+import { COLOR_SCHEMES } from '../context/ThemeContext';
+import { earthToneColors, blueGrayColors, greenBeigeColors } from '../theme/themeConfig';
 
 // MUI组件
 import Container from '@mui/material/Container';
@@ -26,6 +29,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Fade from '@mui/material/Fade';
 import Grow from '@mui/material/Grow';
 import Tooltip from '@mui/material/Tooltip';
+import Paper from '@mui/material/Paper';
 
 // 图标
 import AddIcon from '@mui/icons-material/Add';
@@ -54,6 +58,25 @@ function WordbooksPage() {
         message: '',
         severity: 'success'
     });
+    
+    // 获取当前主题和配色方案
+    const { colorScheme } = useTheme();
+    
+    // 根据当前主题选择配色方案
+    const getThemeColors = () => {
+        switch(colorScheme) {
+            case COLOR_SCHEMES.BLUE_GRAY:
+                return blueGrayColors;
+            case COLOR_SCHEMES.GREEN_BEIGE:
+                return greenBeigeColors;
+            case COLOR_SCHEMES.EARTH_TONE:
+            default:
+                return earthToneColors;
+        }
+    };
+    
+    // 当前主题的颜色
+    const themeColors = getThemeColors();
 
     const navigate = useNavigate();
 
@@ -111,7 +134,22 @@ function WordbooksPage() {
 
     // 开始学习
     const handleStartLearning = (wordbookId) => {
-        navigate(`/learn/${wordbookId}`);
+        // 明确指定模式为"new"，只学习新单词
+        navigate(`/learn/${wordbookId}`, {
+            state: {
+                mode: 'new'  // 明确指定只学习新单词
+            }
+        });
+    };
+
+    // 新增：开始复习功能
+    const handleStartReview = (wordbookId) => {
+        // 明确指定模式为"review"，只复习旧单词
+        navigate(`/learn/${wordbookId}`, {
+            state: {
+                mode: 'review'  // 明确指定只复习旧单词
+            }
+        });
     };
 
     // 查看单词书详情
@@ -220,15 +258,15 @@ function WordbooksPage() {
             }}>
                 <Typography 
                     component="h1" 
-                    variant="h4" 
-                    className="gradient-text"
+                    variant="h4"
+                    className="gradient-text" 
                     sx={{ 
                         fontWeight: 'bold',
                         display: 'flex',
                         alignItems: 'center'
                     }}
                 >
-                    <BookIcon sx={{ mr: 2, fontSize: '2rem' }} />
+                    <BookIcon sx={{ mr: 2, fontSize: '2rem', color: themeColors.accent || '#A67C52' }} />
                     我的单词书
                 </Typography>
                 <Button
@@ -239,12 +277,12 @@ function WordbooksPage() {
                         borderRadius: '50px',
                         py: 1.3,
                         px: 3,
-                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                        boxShadow: '0 8px 16px rgba(71, 118, 230, 0.3)',
+                        background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                        boxShadow: `0 8px 16px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.3)'}`,
                         fontWeight: 'bold',
                         transition: 'all 0.3s ease',
                         '&:hover': {
-                            boxShadow: '0 12px 20px rgba(71, 118, 230, 0.4)',
+                            boxShadow: `0 12px 20px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.4)'}`,
                             transform: 'translateY(-3px)'
                         },
                     }}
@@ -287,14 +325,15 @@ function WordbooksPage() {
                             alignItems: 'center',
                             borderRadius: '20px',
                             my: 4,
-                            textAlign: 'center'
+                            textAlign: 'center',
+                            backgroundColor: themeColors.light || '#F8F4E9'
                         }}
                     >
-                        <MoodIcon sx={{ fontSize: '4rem', color: '#8E54E9', mb: 2 }} />
-                        <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                        <MoodIcon sx={{ fontSize: '4rem', color: themeColors.accent || '#A67C52', mb: 2 }} />
+                        <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: themeColors.text || '#3E2723' }}>
                             你还没有创建任何单词书
                         </Typography>
-                        <Typography variant="body1" sx={{ mb: 4, color: 'text.secondary' }}>
+                        <Typography variant="body1" sx={{ mb: 4, color: themeColors.secondary || '#C4A484' }}>
                             点击"新建单词书"按钮开始创建自己的单词书，然后从单词列表中添加单词！
                         </Typography>
                         <Button
@@ -305,13 +344,13 @@ function WordbooksPage() {
                                 borderRadius: '50px',
                                 py: 1.5,
                                 px: 4,
-                                background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                                boxShadow: '0 8px 16px rgba(71, 118, 230, 0.3)',
+                                background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                                boxShadow: `0 8px 16px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.3)'}`,
                                 fontWeight: 'bold',
                                 fontSize: '1rem',
                                 transition: 'all 0.3s ease',
                                 '&:hover': {
-                                    boxShadow: '0 12px 20px rgba(71, 118, 230, 0.4)',
+                                    boxShadow: `0 12px 20px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.4)'}`,
                                     transform: 'translateY(-3px)'
                                 },
                             }}
@@ -343,7 +382,9 @@ function WordbooksPage() {
                                         display: 'flex',
                                         flexDirection: 'column',
                                         transition: 'all 0.3s ease',
+                                        backgroundColor: `${themeColors.light} !important`, // 确保背景色不被MUI默认样式覆盖
                                     }}
+                                    component={Paper} // 显式指定为Paper组件
                                 >
                                     {/* 装饰条纹 */}
                                     <Box 
@@ -353,7 +394,7 @@ function WordbooksPage() {
                                             left: 0,
                                             width: '100%',
                                             height: '6px',
-                                            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                            background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
                                             borderTopLeftRadius: '16px',
                                             borderTopRightRadius: '16px',
                                             opacity: 0.7
@@ -364,14 +405,14 @@ function WordbooksPage() {
                                         title={
                                             <Typography 
                                                 variant="h6" 
-                                                className="gradient-text" 
                                                 sx={{ 
                                                     fontWeight: 'bold',
                                                     display: 'flex',
-                                                    alignItems: 'center'
+                                                    alignItems: 'center',
+                                                    color: themeColors.text || '#3E2723'
                                                 }}
                                             >
-                                                <DashboardCustomizeIcon sx={{ mr: 1 }} />
+                                                <DashboardCustomizeIcon sx={{ mr: 1, color: themeColors.accent || '#A67C52' }} />
                                                 {wordbook.name}
                                             </Typography>
                                         }
@@ -379,6 +420,9 @@ function WordbooksPage() {
                                             <IconButton 
                                                 aria-label="settings" 
                                                 onClick={(e) => handleOpenMenu(e, wordbook)}
+                                                sx={{
+                                                    color: themeColors.accent || '#A67C52',
+                                                }}
                                             >
                                                 <MoreVertIcon />
                                             </IconButton>
@@ -387,17 +431,17 @@ function WordbooksPage() {
                                     />
                                     <CardContent sx={{ flexGrow: 1, pb: 1 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                            <Typography variant="body2" color="text.secondary">
-                                                总单词数: <strong>{wordbook.wordCount || 0}</strong>
+                                            <Typography variant="body2" sx={{ color: themeColors.text || '#3E2723' }}>
+                                                总单词数: <strong>{wordbook.totalWords || 0}</strong>
                                             </Typography>
                                         </Box>
                                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                            <Typography variant="body2" color="text.secondary">
+                                            <Typography variant="body2" sx={{ color: themeColors.text || '#3E2723' }}>
                                                 已学习: <strong>{wordbook.learnedCount || 0}</strong>
                                             </Typography>
                                         </Box>
                                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                            <Typography variant="body2" color="text.secondary">
+                                            <Typography variant="body2" sx={{ color: themeColors.text || '#3E2723' }}>
                                                 已掌握: <strong>{wordbook.masteredCount || 0}</strong>
                                             </Typography>
                                         </Box>
@@ -406,7 +450,7 @@ function WordbooksPage() {
                                             sx={{ 
                                                 mt: 2, 
                                                 pt: 2, 
-                                                borderTop: '1px solid rgba(0, 0, 0, 0.08)',
+                                                borderTop: `1px solid ${themeColors.borderColor || 'rgba(166, 124, 82, 0.2)'}`,
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'space-between'
@@ -414,17 +458,17 @@ function WordbooksPage() {
                                         >
                                             <Typography 
                                                 variant="body2" 
-                                                color="text.secondary"
                                                 sx={{ 
                                                     display: 'flex', 
-                                                    alignItems: 'center' 
+                                                    alignItems: 'center',
+                                                    color: themeColors.secondary || '#C4A484'
                                                 }}
                                             >
                                                 <SchoolIcon 
                                                     fontSize="small" 
                                                     sx={{ 
                                                         mr: 0.5, 
-                                                        color: wordbook.wordCount ? '#4776E6' : 'text.disabled' 
+                                                        color: wordbook.wordCount ? themeColors.accent || '#A67C52' : themeColors.tertiary || '#D2B48C' 
                                                     }} 
                                                 />
                                                 学习进度:
@@ -434,7 +478,7 @@ function WordbooksPage() {
                                                     position: 'relative', 
                                                     width: '60%', 
                                                     height: '8px', 
-                                                    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                                                    backgroundColor: themeColors.borderColor || 'rgba(166, 124, 82, 0.1)',
                                                     borderRadius: '4px',
                                                     overflow: 'hidden'
                                                 }}
@@ -445,8 +489,8 @@ function WordbooksPage() {
                                                         top: 0,
                                                         left: 0,
                                                         height: '100%',
-                                                        width: `${wordbook.wordCount ? (wordbook.masteredCount / wordbook.wordCount) * 100 : 0}%`,
-                                                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                                        width: `${wordbook.totalWords ? (wordbook.masteredCount / wordbook.totalWords) * 100 : 0}%`,
+                                                        background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
                                                         borderRadius: '4px',
                                                         transition: 'width 1s ease-in-out'
                                                     }}
@@ -460,41 +504,70 @@ function WordbooksPage() {
                                             size="small"
                                             onClick={() => handleViewDetail(wordbook._id)}
                                             sx={{
-                                                color: '#4776E6',
+                                                color: themeColors.accent || '#A67C52',
                                                 '&:hover': {
-                                                    backgroundColor: 'rgba(71, 118, 230, 0.08)'
+                                                    backgroundColor: `${themeColors.hoverBg || 'rgba(166, 124, 82, 0.08)'}`
                                                 }
                                             }}
                                         >
                                             查看详情
                                         </Button>
-                                        <Tooltip title="开始学习">
-                                            <span>
-                                                <Button
-                                                    variant="contained"
-                                                    color="primary"
-                                                    size="small"
-                                                    startIcon={<PlayArrowIcon />}
-                                                    onClick={() => handleStartLearning(wordbook._id)}
-                                                    disabled={wordbook.wordCount === 0}
-                                                    sx={{
-                                                        borderRadius: '20px',
-                                                        background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                                                        boxShadow: '0 4px 12px rgba(71, 118, 230, 0.2)',
-                                                        transition: 'all 0.3s ease',
-                                                        '&:hover': {
-                                                            boxShadow: '0 6px 15px rgba(71, 118, 230, 0.3)',
-                                                            transform: 'translateY(-2px)'
-                                                        },
-                                                        '&:active': {
-                                                            transform: 'translateY(0)'
-                                                        }
-                                                    }}
-                                                >
-                                                    学习
-                                                </Button>
-                                            </span>
-                                        </Tooltip>
+                                        <Box sx={{ display: 'flex', gap: 1 }}>
+                                            <Tooltip title="学习新词">
+                                                <span>
+                                                    <Button
+                                                        variant="contained"
+                                                        color="primary"
+                                                        size="small"
+                                                        startIcon={<PlayArrowIcon />}
+                                                        onClick={() => handleStartLearning(wordbook._id)}
+                                                        disabled={wordbook.totalWords === 0}
+                                                        sx={{
+                                                            borderRadius: '20px',
+                                                            background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                                                            boxShadow: `0 4px 12px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.2)'}`,
+                                                            transition: 'all 0.3s ease',
+                                                            '&:hover': {
+                                                                boxShadow: `0 6px 15px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.3)'}`,
+                                                                transform: 'translateY(-2px)'
+                                                            },
+                                                            '&:active': {
+                                                                transform: 'translateY(0)'
+                                                            }
+                                                        }}
+                                                    >
+                                                        学习
+                                                    </Button>
+                                                </span>
+                                            </Tooltip>
+                                            <Tooltip title="复习单词">
+                                                <span>
+                                                    <Button
+                                                        variant="outlined"
+                                                        size="small"
+                                                        startIcon={<SchoolIcon />}
+                                                        onClick={() => handleStartReview(wordbook._id)}
+                                                        disabled={wordbook.learnedCount === 0}
+                                                        sx={{
+                                                            borderRadius: '20px',
+                                                            borderColor: themeColors.accent || '#A67C52',
+                                                            color: themeColors.accent || '#A67C52',
+                                                            transition: 'all 0.3s ease',
+                                                            '&:hover': {
+                                                                borderColor: themeColors.secondary || '#C4A484',
+                                                                backgroundColor: `${themeColors.hoverBg || 'rgba(166, 124, 82, 0.08)'}`,
+                                                                transform: 'translateY(-2px)'
+                                                            },
+                                                            '&:active': {
+                                                                transform: 'translateY(0)'
+                                                            }
+                                                        }}
+                                                    >
+                                                        复习
+                                                    </Button>
+                                                </span>
+                                            </Tooltip>
+                                        </Box>
                                     </CardActions>
                                 </Card>
                             </Grow>
@@ -511,14 +584,15 @@ function WordbooksPage() {
                     sx: {
                         borderRadius: '16px',
                         boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                        backgroundColor: themeColors.primary || '#F3E9DD'
                     },
                     elevation: 2
                 }}
             >
                 <DialogTitle 
                     sx={{ 
-                        background: 'linear-gradient(135deg, #4776E6, #8E54E9)',
-                        color: 'white',
+                        background: `linear-gradient(135deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                        color: themeColors.light || '#F8F4E9',
                         py: 2,
                     }}
                 >
@@ -537,6 +611,18 @@ function WordbooksPage() {
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: '12px',
                             },
+                            '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: `${themeColors.borderColor || 'rgba(166, 124, 82, 0.3)'}`
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: `${themeColors.borderColorHover || 'rgba(166, 124, 82, 0.5)'}`
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: themeColors.accent || '#A67C52'
+                            },
+                            '& .MuiOutlinedInput-input': {
+                                color: themeColors.text || '#3E2723'
+                            },
                             mt: 1
                         }}
                     />
@@ -545,10 +631,10 @@ function WordbooksPage() {
                     <Button 
                         onClick={handleCloseNewDialog}
                         sx={{
-                            color: '#4776E6',
+                            color: themeColors.accent || '#A67C52',
                             borderRadius: '8px',
                             '&:hover': {
-                                backgroundColor: 'rgba(71, 118, 230, 0.08)'
+                                backgroundColor: themeColors.hoverBg || 'rgba(166, 124, 82, 0.08)'
                             }
                         }}
                     >
@@ -560,11 +646,11 @@ function WordbooksPage() {
                         disabled={dialogLoading}
                         sx={{
                             borderRadius: '8px',
-                            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                            boxShadow: '0 4px 12px rgba(71, 118, 230, 0.2)',
+                            background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                            boxShadow: `0 4px 12px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.2)'}`,
                             transition: 'all 0.3s ease',
                             '&:hover': {
-                                boxShadow: '0 6px 15px rgba(71, 118, 230, 0.3)',
+                                boxShadow: `0 6px 15px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.3)'}`,
                             }
                         }}
                     >
@@ -581,14 +667,15 @@ function WordbooksPage() {
                     sx: {
                         borderRadius: '16px',
                         boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                        backgroundColor: themeColors.primary || '#F3E9DD'
                     },
                     elevation: 2
                 }}
             >
                 <DialogTitle 
                     sx={{ 
-                        background: 'linear-gradient(135deg, #4776E6, #8E54E9)',
-                        color: 'white',
+                        background: `linear-gradient(135deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                        color: themeColors.light || '#F8F4E9',
                         py: 2,
                     }}
                 >
@@ -607,6 +694,18 @@ function WordbooksPage() {
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: '12px',
                             },
+                            '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: `${themeColors.borderColor || 'rgba(166, 124, 82, 0.3)'}`
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: `${themeColors.borderColorHover || 'rgba(166, 124, 82, 0.5)'}`
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: themeColors.accent || '#A67C52'
+                            },
+                            '& .MuiOutlinedInput-input': {
+                                color: themeColors.text || '#3E2723'
+                            },
                             mt: 1
                         }}
                     />
@@ -615,10 +714,10 @@ function WordbooksPage() {
                     <Button 
                         onClick={handleCloseEditDialog}
                         sx={{
-                            color: '#4776E6',
+                            color: themeColors.accent || '#A67C52',
                             borderRadius: '8px',
                             '&:hover': {
-                                backgroundColor: 'rgba(71, 118, 230, 0.08)'
+                                backgroundColor: themeColors.hoverBg || 'rgba(166, 124, 82, 0.08)'
                             }
                         }}
                     >
@@ -630,11 +729,11 @@ function WordbooksPage() {
                         disabled={dialogLoading}
                         sx={{
                             borderRadius: '8px',
-                            background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                            boxShadow: '0 4px 12px rgba(71, 118, 230, 0.2)',
+                            background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                            boxShadow: `0 4px 12px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.2)'}`,
                             transition: 'all 0.3s ease',
                             '&:hover': {
-                                boxShadow: '0 6px 15px rgba(71, 118, 230, 0.3)',
+                                boxShadow: `0 6px 15px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.3)'}`,
                             }
                         }}
                     >
@@ -652,7 +751,8 @@ function WordbooksPage() {
                     sx: { 
                         borderRadius: '12px', 
                         boxShadow: '0 8px 20px rgba(0, 0, 0, 0.1)',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
+                        backgroundColor: themeColors.light || '#F8F4E9'
                     },
                     elevation: 2
                 }}
@@ -663,11 +763,12 @@ function WordbooksPage() {
                         py: 1.5,
                         transition: 'all 0.2s ease',
                         '&:hover': {
-                            backgroundColor: 'rgba(71, 118, 230, 0.08)',
-                        }
+                            backgroundColor: themeColors.hoverBg || 'rgba(166, 124, 82, 0.08)',
+                        },
+                        color: themeColors.text || '#3E2723'
                     }}
                 >
-                    <EditIcon fontSize="small" sx={{ mr: 1, color: '#4776E6' }} />
+                    <EditIcon fontSize="small" sx={{ mr: 1, color: themeColors.accent || '#A67C52' }} />
                     编辑
                 </MenuItem>
                 <MenuItem 
