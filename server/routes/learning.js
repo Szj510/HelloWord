@@ -75,8 +75,8 @@ router.get('/session', authMiddleware, async (req, res) => {
     const { wordbookId } = req.query; // 从查询参数获取要学习的单词书 ID
 
     // --- V 定义本次会话的单词数量限制 (后续可改为用户设置) --- V
-    const reviewLimit = parseInt(req.query.reviewLimit || '30', 10); // 最多复习 30 个
-    const newLimit = parseInt(req.query.newLimit || '10', 10);       // 最多学习 10 个新词
+    let reviewLimit = parseInt(req.query.reviewLimit || '30', 10); // 最多复习 30 个
+    let newLimit = parseInt(req.query.newLimit || '10', 10);       // 最多学习 10 个新词
     // --- ^ 定义结束 ^ ---
 
     if (!wordbookId || !mongoose.Types.ObjectId.isValid(wordbookId)) {

@@ -10,6 +10,7 @@ const wordRoutes = require('./routes/words');
 const learningRoutes = require('./routes/learning');
 const statisticsRoutes = require('./routes/statistics');
 const planRoutes = require('./routes/plans');
+const notebookRoutes = require('./routes/notebook');
 
 // 加载环境变量
 dotenv.config();
@@ -35,6 +36,7 @@ app.use('/api/learning', learningRoutes);
 app.use('/api', require('./routes/api')); 
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/plans', planRoutes);
+app.use('/api/notebook', notebookRoutes);
 
 // 启动服务器
 const PORT = process.env.PORT || 5001; // 使用 .env 或默认 5001

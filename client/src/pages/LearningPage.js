@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import apiFetch from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 // MUI 组件
 import Container from '@mui/material/Container';
@@ -18,6 +19,10 @@ import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import IconButton from '@mui/material/IconButton'; // 用于发音按钮
+import StarBorderIcon from '@mui/icons-material/StarBorder'; // 空星
+import StarIcon from '@mui/icons-material/Star'; // 实心星
+import Snackbar from '@mui/material/Snackbar'; 
+
 // import VolumeUpIcon from '@mui/icons-material/VolumeUp'; // 发音图标
 // 辅助函数：根据状态返回 Chip 的颜色
 const getStatusColor = (status) => {
@@ -34,7 +39,7 @@ function LearningPage() {
   const { wordbookId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-    
+  const { isAuthenticated, user } = useAuth();
   const queryParams = new URLSearchParams(location.search);
   const initialMode = queryParams.get('mode') || 'flashcard'; // 默认为 flashcard
   const initialNewLimit = queryParams.get('newLimit');       // 可以从 URL 传递限制
@@ -53,6 +58,15 @@ function LearningPage() {
   const [feedback, setFeedback] = useState({ show: false, correct: false, message: '' }); // 拼写反馈
   const spellingInputRef = useRef(null); // 用于聚焦输入框
   
+  const [notebookWordIds, setNotebookWordIds] = useState(new Set()); // 存储生词本中单词 ID 的 Set
+    const [loadingNotebookStatus, setLoadingNotebookStatus] = useState(true); // 加载生词本状态
+    
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+     const [snackbarMessage, setSnackbarMessage] = useState('');
+     const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+     // Snackbar functions
+     const showSnackbar = (message, severity = 'success') => { setSnackbarMessage(message); setSnackbarSeverity(severity); setSnackbarOpen(true); };
+     const handleSnackbarClose = (event, reason) => { if (reason === 'clickaway') { return; } setSnackbarOpen(false); };
   // --- V 修改: 获取学习会话数据 --- V
     const fetchLearningSession = useCallback(async () => {
         setLoading(true);
@@ -96,9 +110,26 @@ function LearningPage() {
         }
     }, [wordbookId, initialNewLimit, initialReviewLimit, learningMode]); // learningMode 加入依赖，聚焦用
 
+    // --- V 新增: 获取生词本单词 ID 列表 --- V
+    const fetchNotebookIds = useCallback(async () => {
+        if (!isAuthenticated) { setLoadingNotebookStatus(false); return; }
+        setLoadingNotebookStatus(true);
+        try {
+            // 调用优化后的 API，只获取 ID
+            const data = await apiFetch('/api/notebook/entries?fields=wordId');
+            setNotebookWordIds(new Set(data?.wordIds || [])); // 更新 Set
+        } catch (err) {
+            console.error("获取生词本 ID 失败:", err);
+            // 此处错误不阻塞主要学习流程，可以选择不提示用户
+        } finally {
+            setLoadingNotebookStatus(false);
+        }
+    }, [isAuthenticated]);
+
     useEffect(() => {
-        fetchLearningSession();
-    }, [fetchLearningSession]); // 依赖 fetchLearningSession
+        fetchLearningSession(); // 获取会话单词
+        fetchNotebookIds();   // 同时获取生词本 ID
+    }, [fetchLearningSession, fetchNotebookIds]); // 依赖 fetchLearningSession
     // --- ^ 修改结束 ^ ---
 //   const fetchWordbookData = useCallback(async () => {
 //         setLoading(true); setError('');
@@ -125,7 +156,47 @@ function LearningPage() {
   // 获取当前显示的单词
   const currentWord = wordsToLearn.length > 0 ? wordsToLearn[currentWordIndex] : null;
 
+    // --- V 新增: 判断当前单词是否在生词本中 --- V
+    const isWordInNotebook = currentWord ? notebookWordIds.has(currentWord._id.toString()) : false;
   const handleCardClick = () => { setIsRevealed(!isRevealed); };
+
+    // --- V 新增: 处理添加到/移出生词本 --- V
+    const handleToggleNotebook = async () => {
+        if (!currentWord || isSubmitting || loadingNotebookStatus) return; // 防止重复操作
+
+        const wordId = currentWord._id;
+        const inNotebook = isWordInNotebook; // 当前状态
+
+        // 优化：立即更新 UI 状态，然后发送请求
+        const optimisticNewSet = new Set(notebookWordIds);
+        if (inNotebook) {
+            optimisticNewSet.delete(wordId.toString());
+        } else {
+            optimisticNewSet.add(wordId.toString());
+        }
+        setNotebookWordIds(optimisticNewSet);
+
+        try {
+            if (inNotebook) {
+                // 从生词本移除
+                await apiFetch(`/api/notebook/entries/${wordId}`, { method: 'DELETE' });
+                showSnackbar(`"${currentWord.spelling}" 已从生词本移除`, 'info');
+            } else {
+                // 添加到生词本
+                await apiFetch('/api/notebook/entries', {
+                    method: 'POST',
+                    body: JSON.stringify({ wordId: wordId, wordbookId: wordbookId }) // 需要提供来源单词书 ID
+                });
+                showSnackbar(`"${currentWord.spelling}" 已添加到生词本`, 'success');
+            }
+            // 请求成功，UI 状态已更新，无需额外操作
+        } catch (err) {
+            console.error("生词本操作失败:", err);
+            showSnackbar(`操作失败: ${err.message}`, 'error');
+            // 请求失败，回滚 UI 状态
+            setNotebookWordIds(notebookWordIds); // 恢复到操作前的状态
+        }
+    };
 
     // --- V 新增: 处理模式切换 --- V
     const handleModeChange = (event, newMode) => {
@@ -172,36 +243,71 @@ function LearningPage() {
          }
      };
 
-     // --- V 新增: 播放发音 (需要后端支持或第三方 API) --- V
-     const playAudio = () => {
-         console.log("TODO: 实现播放发音功能");
-         // if (currentWord?.audio_us || currentWord?.audio_uk) {
-         //    const audio = new Audio(currentWord.audio_us || currentWord.audio_uk);
-         //    audio.play();
-         // } else {
-         //    // 使用 TTS API, e.g., Web Speech API
-         //    if ('speechSynthesis' in window) {
-         //        const utterance = new SpeechSynthesisUtterance(currentWord.spelling);
-         //        // utterance.lang = 'en-US'; // 可以指定语言
-         //        window.speechSynthesis.speak(utterance);
-         //    } else {
-         //        alert("浏览器不支持语音合成");
-         //    }
-         // }
-          if (currentWord && 'speechSynthesis' in window) {
-              try {
-                 const utterance = new SpeechSynthesisUtterance(currentWord.spelling);
-                 utterance.lang = 'en-US'; // 尝试指定美音
-                 window.speechSynthesis.cancel(); // 取消之前的发音 (如果有)
-                 window.speechSynthesis.speak(utterance);
-              } catch (e) {
-                   console.error("语音合成错误:", e);
-                   alert("无法播放发音");
-               }
-           } else if (currentWord) {
-               alert("浏览器不支持语音合成或单词无效");
-           }
-
+     // --- 实现播放发音功能 ---
+     const playAudio = async () => {
+         if (!currentWord) return;
+         
+         // 尝试使用Free Dictionary API获取发音
+         try {
+             // 显示加载提示
+             showSnackbar("正在获取发音...", "info");
+             
+             // 请求Free Dictionary API
+             const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(currentWord.spelling)}`);
+             
+             if (!response.ok) throw new Error("API请求失败");
+             
+             const data = await response.json();
+             
+             // 查找音频URL (优先查找美式发音)
+             let audioUrl = null;
+             if (data && data.length > 0 && data[0].phonetics) {
+                 // 查找美式发音
+                 const usAudio = data[0].phonetics.find(p => 
+                     p.audio && p.audio.length > 0 && (p.locale === 'us' || p.audio.includes('us'))
+                 );
+                 // 找不到美式发音就用任何可用的发音
+                 const anyAudio = data[0].phonetics.find(p => p.audio && p.audio.length > 0);
+                 
+                 audioUrl = usAudio?.audio || anyAudio?.audio;
+             }
+             
+             if (audioUrl) {
+                 // 播放音频
+                 const audio = new Audio(audioUrl);
+                 audio.onerror = () => {
+                     throw new Error("音频加载失败");
+                 };
+                 await audio.play();
+                 showSnackbar("正在播放发音", "success");
+                 return; // 成功播放，退出函数
+             } else {
+                 throw new Error("未找到发音音频");
+             }
+         } catch (err) {
+             console.error("API发音获取失败:", err);
+             // API失败，回退到Web Speech API
+             fallbackSpeech();
+         }
+     };
+     
+     // 使用Web Speech API作为备选方案
+     const fallbackSpeech = () => {
+         if (currentWord && 'speechSynthesis' in window) {
+             try {
+                const utterance = new SpeechSynthesisUtterance(currentWord.spelling);
+                utterance.lang = 'en-US';
+                utterance.rate = 0.8; // 稍微放慢语速以便更清晰
+                window.speechSynthesis.cancel(); // 取消之前的发音
+                window.speechSynthesis.speak(utterance);
+                showSnackbar("使用本地合成播放发音", "info");
+             } catch (e) {
+                 console.error("语音合成错误:", e);
+                 showSnackbar("无法播放发音", "error");
+             }
+         } else {
+             showSnackbar("浏览器不支持语音合成", "error");
+         }
      };
 
     // 前进到下一个单词 (修改: 重置拼写状态)
@@ -281,6 +387,15 @@ function LearningPage() {
                     {/* 状态 Chip (不变) */}
                     {currentWord.status && (<Chip label={currentWord.status} size="small" color={getStatusColor(currentWord.status)} sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}/> )}
 
+                    <IconButton
+                         onClick={handleToggleNotebook}
+                         disabled={loadingNotebookStatus || isSubmitting} // 加载状态或提交中禁用
+                         color={isWordInNotebook ? "primary" : "default"} // 在生词本中则高亮
+                         sx={{ position: 'absolute', top: 8, left: 8, zIndex: 1 }} // 定位到左上角
+                         title={isWordInNotebook ? "从生词本移除" : "添加到生词本"}
+                    >
+                         {isWordInNotebook ? <StarIcon /> : <StarBorderIcon />}
+                     </IconButton>
                     {/* --- V 修改: 根据模式渲染不同内容 --- V */}
                     {learningMode === 'flashcard' ? (
                         // --- Flashcard 模式 ---
