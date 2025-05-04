@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import apiFetch from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { memoryColors } from '../theme/themeConfig';
+import { useTheme as useAppTheme } from '../context/ThemeContext';
+import { memoryColors, getActiveTheme } from '../theme/themeConfig';
+import { useTheme as useMuiTheme } from '@mui/material/styles';
 
 // MUI 组件
 import Container from '@mui/material/Container';
@@ -27,10 +28,8 @@ import Snackbar from '@mui/material/Snackbar';
 import Paper from '@mui/material/Paper';
 import LinearProgress from '@mui/material/LinearProgress';
 import Tooltip from '@mui/material/Tooltip';
-import Zoom from '@mui/material/Zoom';
 import Fade from '@mui/material/Fade';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp'; // 发音图标
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // 提示图标
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'; // 正确图标
 import CancelIcon from '@mui/icons-material/Cancel'; // 错误图标
 import Grow from '@mui/material/Grow'; // 添加Grow动画效果
@@ -109,8 +108,10 @@ function LearningPage() {
   const { wordbookId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, user } = useAuth();
-  const { theme } = useTheme(); // 获取当前主题
+  const { isAuthenticated } = useAuth(); // 移除未使用的user变量
+  const { colorScheme } = useAppTheme(); // 获取当前颜色方案
+  const themeColors = getActiveTheme(colorScheme).palette.colorScheme; // 获取当前主题的配色
+  const muiTheme = useMuiTheme(); // 获取MUI主题对象
   const queryParams = new URLSearchParams(location.search);
   const initialMode = queryParams.get('mode') || 'flashcard'; // 默认为 flashcard
   const initialNewLimit = queryParams.get('newLimit');       // 可以从 URL 传递限制
@@ -267,7 +268,13 @@ function LearningPage() {
 
   const isWordInNotebook = currentWord ? notebookWordIds.has(currentWord._id.toString()) : false;
   
-  const handleCardClick = () => { setIsRevealed(!isRevealed); };
+  // 修复闪卡模式点击事件
+  const handleCardClick = () => {
+      if (learningMode === 'flashcard') {
+          console.log("卡片被点击，当前显示状态:", isRevealed, "切换为:", !isRevealed);
+          setIsRevealed(!isRevealed);
+      }
+  };
 
   const handleToggleNotebook = async () => {
       if (!currentWord || isSubmitting || loadingNotebookStatus) return;
@@ -597,7 +604,7 @@ function LearningPage() {
                           backgroundColor: 'rgba(71, 118, 230, 0.1)',
                           '& .MuiLinearProgress-bar': {
                               borderRadius: 4,
-                              background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                              background: themeColors.gradient,
                           }
                       }}
                   />
@@ -619,7 +626,7 @@ function LearningPage() {
                           label={`${sessionInfo?.completedCount || 0}/${sessionInfo?.totalWords || 0}`}
                           size="small"
                           color="primary"
-                          variant={(theme?.palette?.mode || 'light') === 'dark' ? 'outlined' : 'filled'}
+                          variant={(muiTheme?.palette?.mode || 'light') === 'dark' ? 'outlined' : 'filled'}
                           sx={{ 
                               fontWeight: 500,
                               boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -635,7 +642,7 @@ function LearningPage() {
                           label={`${sessionInfo?.newWordsCount || 0}/${sessionInfo?.reviewWordsCount || 0}`}
                           size="small"
                           color="secondary"
-                          variant={(theme?.palette?.mode || 'light') === 'dark' ? 'outlined' : 'filled'}
+                          variant={(muiTheme?.palette?.mode || 'light') === 'dark' ? 'outlined' : 'filled'}
                           sx={{ 
                               fontWeight: 500,
                               boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -711,7 +718,7 @@ function LearningPage() {
               sx={{ 
                   mb: 3,
                   fontWeight: 'bold',
-                  background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                  background: themeColors.gradient,
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent'
               }}
@@ -746,9 +753,9 @@ function LearningPage() {
                               py: 1,
                               border: 'none',
                               '&.Mui-selected': {
-                                  background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
+                                  background: themeColors.gradient,
                                   color: 'white',
-                                  boxShadow: '0 4px 10px rgba(71, 118, 230, 0.3)'
+                                  boxShadow: `0 4px 10px rgba(${parseInt(themeColors.accent.substring(1, 3), 16)}, ${parseInt(themeColors.accent.substring(3, 5), 16)}, ${parseInt(themeColors.accent.substring(5, 7), 16)}, 0.3)`
                               }
                           }}
                       >
@@ -763,9 +770,9 @@ function LearningPage() {
                               border: 'none',
                               ml: 1,
                               '&.Mui-selected': {
-                                  background: 'linear-gradient(90deg, #8E54E9, #4776E6)',
+                                  background: themeColors.gradient,
                                   color: 'white',
-                                  boxShadow: '0 4px 10px rgba(142, 84, 233, 0.3)'
+                                  boxShadow: `0 4px 10px rgba(${parseInt(themeColors.accent.substring(1, 3), 16)}, ${parseInt(themeColors.accent.substring(3, 5), 16)}, ${parseInt(themeColors.accent.substring(5, 7), 16)}, 0.3)`
                               }
                           }}
                       >
@@ -784,13 +791,15 @@ function LearningPage() {
                           minHeight: 300,
                           m: 'auto',
                           borderRadius: 2,
-                          boxShadow: theme?.palette ? theme.palette.mode === 'dark' ? '0 8px 24px rgba(0, 0, 0, 0.2)' : '0 8px 24px rgba(0, 0, 0, 0.1)' : '0 8px 24px rgba(0, 0, 0, 0.1)',
+                          boxShadow: themeColors.boxShadow,
                           position: 'relative',
                           overflow: 'visible',
-                          bgcolor: theme?.palette ? theme.palette.background.paper : 'inherit',
-                          border: `1px solid ${theme?.palette ? theme.palette.divider : 'rgba(0, 0, 0, 0.12)'}`,
-                          transition: 'all 0.3s ease'
+                          bgcolor: themeColors.primary,
+                          border: `1px solid ${themeColors.border}`,
+                          transition: 'all 0.3s ease',
+                          cursor: learningMode === 'flashcard' ? 'pointer' : 'default'
                       }}
+                      onClick={handleCardClick}
                   >
                       {/* 记忆层级指示器 */}
                       {memoryLevelVis && (
@@ -843,7 +852,7 @@ function LearningPage() {
                               disabled={isSubmitting || loadingNotebookStatus}
                               sx={{ 
                                   color: isWordInNotebook 
-                                      ? theme?.palette?.mode === 'dark'
+                                      ? muiTheme?.palette?.mode === 'dark'
                                           ? 'rgba(255, 215, 0, 0.8)' 
                                           : 'rgba(255, 193, 7, 1)' 
                                       : 'inherit' 
@@ -859,7 +868,7 @@ function LearningPage() {
                               disabled={playingAudio || !currentWord}
                               title="听发音"
                               sx={{
-                                  color: theme?.palette ? theme.palette.primary.main : 'inherit'
+                                  color: muiTheme?.palette ? muiTheme.palette.primary.main : 'inherit'
                               }}
                           >
                               <VolumeUpIcon />
@@ -874,26 +883,40 @@ function LearningPage() {
                               mb: 2,
                               flexWrap: 'wrap'
                           }}>
-                              <Typography 
-                                  variant="h4" 
-                                  component="h1"
-                                  sx={{ 
-                                      fontWeight: 700,
-                                      color: theme?.palette ? theme.palette.text.primary : 'inherit',
-                                      textAlign: 'center'
-                                  }}
-                              >
-                                  {currentWord.spelling}
-                              </Typography>
+                              {learningMode === 'spelling' ? (
+                                  <Typography 
+                                      variant="h5" 
+                                      component="h1"
+                                      sx={{ 
+                                          fontWeight: 700,
+                                          color: muiTheme?.palette ? muiTheme.palette.text.primary : 'inherit',
+                                          textAlign: 'center'
+                                      }}
+                                  >
+                                      {currentWord.meaning || "加载中..."}
+                                  </Typography>
+                              ) : (
+                                  <Typography 
+                                      variant="h4" 
+                                      component="h1"
+                                      sx={{ 
+                                          fontWeight: 700,
+                                          color: muiTheme?.palette ? muiTheme.palette.text.primary : 'inherit',
+                                          textAlign: 'center'
+                                      }}
+                                  >
+                                      {currentWord.spelling}
+                                  </Typography>
+                              )}
                               
                               {renderPOS(currentWord.pos)}
                               
-                              {currentWord.phonetic && (
+                              {currentWord.phonetic && learningMode !== 'spelling' && (
                                   <Typography 
                                       variant="body2"
                                       sx={{ 
                                           ml: 1, 
-                                          color: theme?.palette ? theme.palette.text.secondary : 'inherit' 
+                                          color: muiTheme?.palette ? muiTheme.palette.text.secondary : 'inherit' 
                                       }}
                                   >
                                       [{currentWord.phonetic}]
@@ -915,43 +938,29 @@ function LearningPage() {
                               )}
                           </Box>
 
-                          <Collapse in={learningMode === 'flashcard' ? isRevealed : true}>
+                          <Collapse in={(learningMode === 'flashcard' && isRevealed) || learningMode === 'spelling'}>
                               <Box sx={{ 
                                   borderRadius: 2, 
                                   mt: 2,
                                   mb: 1,
                                   px: 2, 
-                                  py: 1, 
-                                  bgcolor: theme?.palette ? 
-                                      theme.palette.mode === 'dark' 
-                                          ? 'rgba(71, 118, 230, 0.08)' 
-                                          : 'rgba(71, 118, 230, 0.05)' 
-                                      : 'rgba(71, 118, 230, 0.05)'
+                                  py: 1,
+                                  position: 'relative',
+                                  zIndex: 2,
+                                  bgcolor: `rgba(${parseInt(themeColors.accent.substring(1, 3), 16)}, ${parseInt(themeColors.accent.substring(3, 5), 16)}, ${parseInt(themeColors.accent.substring(5, 7), 16)}, 0.08)`
                               }}>
-                                  <Typography variant="body1" sx={{ color: theme?.palette ? theme.palette.text.primary : 'inherit' }}>
-                                      {currentWord.definition?.split('\n').map((line, i) => (
-                                          <div key={i}>{line}</div>
-                                      ))}
+                                  <Typography variant="body1" sx={{ color: themeColors.text }}>
+                                      {learningMode === 'spelling' ? (
+                                          '请根据中文释义拼写单词'
+                                      ) : (
+                                          currentWord.meaning?.split('\n').map((line, i) => (
+                                              <div key={i}>{line}</div>
+                                          ))
+                                      )}
                                   </Typography>
                               </Box>
-
-                              {currentWord.example && (
-                                  <Box sx={{ px: 2, position: 'relative', my: 2 }}>
-                                      <Typography 
-                                          variant="body2" 
-                                          sx={{ 
-                                              fontStyle: 'italic',
-                                              color: theme?.palette ? theme.palette.text.secondary : 'inherit',
-                                              pl: 1,
-                                              borderLeft: `3px solid ${theme?.palette ? theme.palette.primary.light : '#4776E6'}`
-                                          }}
-                                      >
-                                          {currentWord.example}
-                                      </Typography>
-                                  </Box>
-                              )}
                           </Collapse>
-                          
+
                           {learningMode === 'flashcard' && !isRevealed && (
                               <Box 
                                   onClick={handleCardClick}
@@ -962,14 +971,14 @@ function LearningPage() {
                                       justifyContent: 'center',
                                       cursor: 'pointer',
                                       borderRadius: 2,
-                                      bgcolor: theme?.palette ? 
-                                          theme.palette.mode === 'dark' 
+                                      bgcolor: muiTheme?.palette ? 
+                                          muiTheme.palette.mode === 'dark' 
                                               ? 'rgba(255, 255, 255, 0.05)' 
                                               : 'rgba(0, 0, 0, 0.02)' 
                                           : 'rgba(0, 0, 0, 0.02)',
                                       '&:hover': {
-                                          bgcolor: theme?.palette ? 
-                                              theme.palette.mode === 'dark' 
+                                          bgcolor: muiTheme?.palette ? 
+                                              muiTheme.palette.mode === 'dark' 
                                                   ? 'rgba(255, 255, 255, 0.08)' 
                                                   : 'rgba(0, 0, 0, 0.04)' 
                                               : 'rgba(0, 0, 0, 0.04)'
@@ -978,7 +987,7 @@ function LearningPage() {
                               >
                                   <Typography 
                                       variant="body1"
-                                      sx={{ color: theme?.palette ? theme.palette.text.secondary : 'inherit' }}
+                                      sx={{ color: muiTheme?.palette ? muiTheme.palette.text.secondary : 'inherit' }}
                                   >
                                       点击卡片查看释义
                                   </Typography>
@@ -1000,8 +1009,8 @@ function LearningPage() {
                                       sx={{
                                           '& .MuiOutlinedInput-root': {
                                               borderRadius: '12px',
-                                              bgcolor: theme?.palette ? 
-                                                  theme.palette.mode === 'dark' 
+                                              bgcolor: muiTheme?.palette ? 
+                                                  muiTheme.palette.mode === 'dark' 
                                                       ? 'rgba(255, 255, 255, 0.05)' 
                                                       : 'rgba(255, 255, 255, 0.8)' 
                                                   : 'rgba(255, 255, 255, 0.8)'
@@ -1015,10 +1024,10 @@ function LearningPage() {
                                           p: 2, 
                                           borderRadius: 2, 
                                           bgcolor: feedback.correct 
-                                              ? theme?.palette?.mode === 'dark' 
+                                              ? muiTheme?.palette?.mode === 'dark' 
                                                   ? 'rgba(76, 175, 80, 0.15)'
                                                   : 'rgba(76, 175, 80, 0.1)'
-                                              : theme?.palette?.mode === 'dark'
+                                              : muiTheme?.palette?.mode === 'dark'
                                                   ? 'rgba(244, 67, 54, 0.15)'
                                                   : 'rgba(244, 67, 54, 0.1)',
                                           display: 'flex',
@@ -1045,11 +1054,12 @@ function LearningPage() {
                                               mt: 2,
                                               py: 1.5,
                                               borderRadius: '12px',
-                                              background: 'linear-gradient(90deg, #4776E6, #8E54E9)',
-                                              boxShadow: '0 4px 15px rgba(71, 118, 230, 0.3)',
+                                              background: themeColors.gradient, // 使用主题渐变色
+                                              boxShadow: themeColors.boxShadow,
                                               '&:hover': {
-                                                  background: 'linear-gradient(90deg, #3D68CC, #7D48CC)',
-                                                  boxShadow: '0 6px 20px rgba(71, 118, 230, 0.4)',
+                                                  background: themeColors.gradient,
+                                                  filter: 'brightness(0.9)',
+                                                  boxShadow: '0 6px 20px rgba(0, 0, 0, 0.2)',
                                               }
                                           }}
                                       >
@@ -1093,7 +1103,7 @@ function LearningPage() {
                           px: 2,
                           borderRadius: '30px',
                           fontWeight: 'bold',
-                          background: 'linear-gradient(90deg, #FF5252, #FF1744)',
+                          background: 'linear-gradient(90deg, #FF5252, #FF1744)', // 保留红色渐变
                           boxShadow: '0 4px 15px rgba(255, 82, 82, 0.3)',
                           '&:hover': {
                               background: 'linear-gradient(90deg, #FF1744, #D50000)',
@@ -1115,12 +1125,13 @@ function LearningPage() {
                           px: 2,
                           borderRadius: '30px',
                           fontWeight: 'bold',
-                          background: 'linear-gradient(90deg, #4CAF50, #43A047)',
-                          boxShadow: '0 4px 15px rgba(76, 175, 80, 0.3)',
+                          background: themeColors.gradient, // 使用主题渐变色
+                          boxShadow: themeColors.boxShadow,
                           '&:hover': {
-                              background: 'linear-gradient(90deg, #43A047, #388E3C)',
+                              background: themeColors.gradient,
+                              filter: 'brightness(0.9)',
                               transform: 'translateY(-2px)',
-                              boxShadow: '0 6px 20px rgba(76, 175, 80, 0.4)',
+                              boxShadow: '0 8px 20px rgba(0, 0, 0, 0.2)',
                           }
                       }}
                   > 
