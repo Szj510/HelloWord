@@ -13,11 +13,21 @@ Hello Word 3.0 版本带来了以下重要更新：
 - **语音播放功能**：支持单词语音播放，辅助发音学习
 - **智能学习算法升级**：更精准地计算复习间隔，提高记忆效率
 
+Demo:
+![主页](./assets/主页.png)
+![单词列表](./assets/单词列表.png)
+![我的单词书](./assets/我的单词书.png)
+![我的生词本](./assets/我的生词本.png)
+![学习统计](./assets/学习统计.png)
+![学习报告](./assets/学习报告.png)
+![学习计划](./assets/学习计划.png)
+![学习页面](./assets/学习页面.png)
+
 ## 版本历史与切换
 
 Hello Word 应用的主要版本演进：
 
-- **Version 3.0** (当前版本 - 提交 8940c29)：全新 UI、验证码验证、词性分类、生词本和语音播放功能
+- **Version 3.0** ：全新 UI、验证码验证、词性分类、生词本和语音播放功能
 - **Version 2.0** (提交 fd98dcc)：邮箱验证、学习计划、统计分析和周报告
 - **Version 1.0** (提交 f290461)：基础功能版本，包含用户认证、单词本管理和简单学习功能
 
@@ -146,7 +156,7 @@ npm install
 创建一个 `.env` 文件在 server 目录中，包含以下配置：
 
 ```
-MONGO_URI=mongodb://localhost:27017/helloword
+MONGODB_URI=mongodb://localhost:27017/helloword
 JWT_SECRET=your_jwt_secret
 PORT=5000
 FRONTEND_URL=http://localhost:3000
@@ -156,6 +166,15 @@ EMAIL_SERVICE=gmail  # 或其他SMTP服务
 EMAIL_USER=your_email@example.com
 EMAIL_PASS=your_email_password_or_app_password
 EMAIL_FROM="Hello Word App <your_email@example.com>"
+
+# qq邮箱参考配置
+EMAIL_HOST=smtp.qq.com
+EMAIL_PORT=465
+EMAIL_SECURE=true
+EMAIL_USER=example@qq.com
+EMAIL_PASS=your_email_password_or_app_password
+EMAIL_FROM='"HelloWord App" <example@qq.com>'
+FRONTEND_URL=http://localhost:3000
 ```
 
 初始化数据库：
@@ -175,12 +194,6 @@ npm start
 ```bash
 cd ../client
 npm install
-```
-
-创建一个 `.env` 文件在 client 目录中：
-
-```
-REACT_APP_API_URL=http://localhost:5000/api
 ```
 
 启动前端开发服务器：

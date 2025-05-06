@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "Hello Word",
+  "name": "Hello Word - 智能英语单词学习记忆应用",
   "icons": [
     {
       "src": "favicon.ico",
@@ -20,6 +20,9 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#6A8D6D",
+  "background_color": "#F0F8F1",
+  "orientation": "portrait",
+  "description": "智能化的英语词汇学习应用，帮助用户高效记忆英语单词",
+  "categories": ["education", "learning", "language"]
 }

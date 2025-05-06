@@ -111,7 +111,78 @@ code {
   background: linear-gradient(135deg, var(--light-bg) 0%, var(--primary-bg) 100%);
 }
 
-/* ===== UI组件样式 - 使用CSS变量而非硬编码颜色 ===== */
+/* 暗色模式 */
+:root[data-theme-mode='dark'] {
+  /* 基础文字和背景颜色 */
+  color: rgba(255, 255, 255, 0.87);
+  
+  /* 暗色模式下背景色调整 */
+  --primary-bg-dark: #1A1A1A;
+  --secondary-bg-dark: #2A2A2A;
+  --tertiary-color-dark: #3A3A3A;
+  --light-bg-dark: #121212;
+  --border-color-dark: #444444;
+  --hover-color-dark: #333333;
+}
+
+/* 奶茶色系暗色模式 */
+:root[data-theme-mode='dark'][data-color-scheme='earth-tone'] {
+  /* 基础颜色 */
+  --primary-bg: #221C15;
+  --secondary-bg: #8B6B4A;
+  --tertiary-color: #80604A;
+  --light-bg: #201A14;
+  --accent-color: #C4A484;
+  --text-color: #F3E9DD;
+  --secondary-text-color: #D4BEA7;
+  --border-color: var(--border-color-dark);
+  --hover-color: var(--hover-color-dark);
+  
+  /* 衍生颜色 */
+  --gradient: linear-gradient(90deg, #8B6B4A, #C4A484);
+  --box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  --hover-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* 蓝灰色系暗色模式 */
+:root[data-theme-mode='dark'][data-color-scheme='blue-gray'] {
+  /* 基础颜色 */
+  --primary-bg: #1A1E26;
+  --secondary-bg: #3B4B6C;
+  --tertiary-color: #4C5C79;
+  --light-bg: #15191F;
+  --accent-color: #6C7C99;
+  --text-color: #EDF0F5;
+  --secondary-text-color: #C7D0DF;
+  --border-color: var(--border-color-dark);
+  --hover-color: var(--hover-color-dark);
+  
+  /* 衍生颜色 */
+  --gradient: linear-gradient(90deg, #3B4B6C, #6C7C99);
+  --box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  --hover-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* 绿米色系暗色模式 */
+:root[data-theme-mode='dark'][data-color-scheme='green-beige'] {
+  /* 基础颜色 */
+  --primary-bg: #1A2A1D;
+  --secondary-bg: #3A6D3D;
+  --tertiary-color: #50A153;
+  --light-bg: #15251A;
+  --accent-color: #80A184;
+  --text-color: #EBF5EC;
+  --secondary-text-color: #B5C9B7;
+  --border-color: var(--border-color-dark);
+  --hover-color: var(--hover-color-dark);
+  
+  /* 衍生颜色 */
+  --gradient: linear-gradient(90deg, #3A6D3D, #80A184);
+  --box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  --hover-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* UI组件样式 - 使用CSS变量而非硬编码颜色 */
 
 /* 卡片拟态效果 */
 .card-neumorphic {
@@ -124,6 +195,12 @@ code {
 .card-neumorphic:hover {
   box-shadow: 10px 10px 20px rgba(0, 0, 0, 0.1), -10px -10px 20px rgba(255, 255, 255, 0.9) !important;
   transform: translateY(-3px);
+}
+
+/* 暗色模式下的卡片样式 */
+:root[data-theme-mode='dark'] .card-neumorphic {
+  background: var(--primary-bg) !important;
+  box-shadow: 8px 8px 16px rgba(0, 0, 0, 0.25), -8px -8px 16px rgba(255, 255, 255, 0.05) !important;
 }
 
 /* 玻璃拟态效果 */
@@ -142,6 +219,13 @@ code {
   transform: translateY(-3px);
 }
 
+/* 暗色模式下的卡片样式 */
+:root[data-theme-mode='dark'] .card-glass {
+  background: rgba(30, 30, 30, 0.7) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
 /* 输入框样式 */
 .input-neumorphic .MuiOutlinedInput-notchedOutline {
   border-color: rgba(0, 0, 0, 0.1) !important;
@@ -156,6 +240,24 @@ code {
 
 .input-neumorphic .MuiOutlinedInput-root:focus-within {
   box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.1), inset -1px -1px 3px rgba(255, 255, 255, 0.7) !important;
+}
+
+/* 暗色模式下的表单元素 */
+:root[data-theme-mode='dark'] .MuiOutlinedInput-root {
+  background-color: rgba(30, 30, 30, 0.6);
+}
+
+:root[data-theme-mode='dark'] .MuiInputLabel-root {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* 暗色模式下的文字颜色 */
+:root[data-theme-mode='dark'] .MuiTypography-root {
+  color: var(--text-color);
+}
+
+:root[data-theme-mode='dark'] .MuiTypography-colorTextSecondary {
+  color: var(--secondary-text-color);
 }
 
 /* 滚动条样式 */

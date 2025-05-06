@@ -453,6 +453,31 @@
   .learning-card__word {
     font-size: 1.8rem;
   }
+  
+  .pos-tag {
+    padding: 1px 6px;
+    font-size: 0.7rem;
+    margin: 0 2px;
+  }
+  
+  .card-focus-mode {
+    border-left-width: 3px;
+  }
+  
+  .memory-border::before {
+    height: 3px;
+  }
+}
+
+/* 暗色模式支持 - 为将来的暗色模式做准备 */
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme-forced]) {
+    --memory-level-1: #E85D5D;
+    --memory-level-2: #E8C35D;
+    --memory-level-3: #42DD42;
+    --memory-level-4: #5BB4FF;
+    --memory-level-5: #AF6CF4;
+  }
 }
 
 /* 专注记忆模式卡片样式 */
@@ -690,4 +715,72 @@
 
 .breathing-effect {
   animation: breathing 4s infinite;
+}
+
+/* 记忆层级边框 - 使用 CSS 变量以支持主题切换 */
+:root {
+  /* 默认记忆颜色 */
+  --memory-level-1: #F85D5D;
+  --memory-level-2: #F8C35D;
+  --memory-level-3: #32CD32;
+  --memory-level-4: #4BA4F9;
+  --memory-level-5: #9F5CE4;
+}
+
+/* 蓝灰色系记忆颜色 */
+:root[data-color-scheme='blue-gray'] {
+  --memory-level-1: #5A6ACF;
+  --memory-level-2: #7487E8;
+  --memory-level-3: #90A3FF;
+  --memory-level-4: #B3C6FF;
+  --memory-level-5: #CED8FF;
+}
+
+/* 奶茶色系记忆颜色 */
+:root[data-color-scheme='earth-tone'] {
+  --memory-level-1: #A67C52;
+  --memory-level-2: #C49C77;
+  --memory-level-3: #D2B48C;
+  --memory-level-4: #E6D5C1;
+  --memory-level-5: #F9F5F0;
+}
+
+/* 绿米色系记忆颜色 */
+:root[data-color-scheme='green-beige'] {
+  --memory-level-1: #57744A;
+  --memory-level-2: #6A8D6D;
+  --memory-level-3: #80A184;
+  --memory-level-4: #A0C1A3;
+  --memory-level-5: #D6E5D8;
+}
+
+/* 使用CSS变量的记忆层级样式 */
+.memory-level-1 {
+  border-color: var(--memory-level-1);
+}
+
+.memory-level-2 {
+  border-color: var(--memory-level-2);
+}
+
+.memory-level-3 {
+  border-color: var(--memory-level-3);
+}
+
+.memory-level-4 {
+  border-color: var(--memory-level-4);
+}
+
+.memory-level-5 {
+  border-color: var(--memory-level-5);
+}
+
+.memory-border::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--memory-level-1), var(--memory-level-3));
 }

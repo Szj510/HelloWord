@@ -34,6 +34,22 @@ import Checkbox from '@mui/material/Checkbox';
 import Switch from '@mui/material/Switch';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import IconButton from '@mui/material/IconButton';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Tooltip from '@mui/material/Tooltip';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
+import PsychologyIcon from '@mui/icons-material/Psychology';
+import InfoIcon from '@mui/icons-material/Info';
+import CloseIcon from '@mui/icons-material/Close';
 // Icons
 import SettingsIcon from '@mui/icons-material/Settings';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -53,6 +69,175 @@ import { earthToneColors, blueGrayColors, greenBeigeColors } from '../theme/them
 
 dayjs.extend(isSameOrAfter);
 
+// 记忆曲线设置组件
+const MemoryCurveSettings = ({ open, onClose, initialValues, onSave }) => {
+    const [settings, setSettings] = useState({
+        efFactor: 2.5,
+        intervalModifier: 1.0,
+        ...initialValues
+    });
+
+    const handleChange = (name) => (event, newValue) => {
+        setSettings({
+            ...settings,
+            [name]: newValue
+        });
+    };
+
+    const handleInputChange = (name) => (event) => {
+        const value = parseFloat(event.target.value);
+        if (!isNaN(value)) {
+            setSettings({
+                ...settings,
+                [name]: value
+            });
+        }
+    };
+
+    const handleSave = () => {
+        onSave(settings);
+        onClose();
+    };
+
+    return (
+        <Dialog
+            open={open}
+            onClose={onClose}
+            maxWidth="sm"
+            fullWidth
+            PaperProps={{
+                sx: {
+                    borderRadius: '16px',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+                }
+            }}
+        >
+            <DialogTitle sx={{
+                pb: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+            }}>
+                <PsychologyIcon color="primary" />
+                记忆曲线高级设置
+            </DialogTitle>
+            <IconButton
+                aria-label="close"
+                onClick={onClose}
+                sx={{
+                    position: 'absolute',
+                    right: 12,
+                    top: 12,
+                    color: (theme) => theme.palette.grey[500],
+                }}
+            >
+                <CloseIcon />
+            </IconButton>
+
+            <DialogContent sx={{ pt: 1 }}>
+                <Typography variant="subtitle2" color="text.secondary" paragraph>
+                    这些设置会影响记忆算法如何安排你的复习计划，仅供高级用户使用。
+                </Typography>
+
+                <Box sx={{ my: 3 }}>
+                    <Typography variant="body2" gutterBottom sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>难度因子 (EF): {settings.efFactor.toFixed(2)}</span>
+                        <Tooltip title="此因子影响单词的复习间隔增长率。值越小，复习频率越高。" arrow>
+                            <InfoIcon fontSize="small" color="action" sx={{ ml: 1, fontSize: '1rem', opacity: 0.8 }} />
+                        </Tooltip>
+                    </Typography>
+                    <Slider
+                        value={settings.efFactor}
+                        onChange={handleChange('efFactor')}
+                        min={1.3}
+                        max={3.0}
+                        step={0.1}
+                        marks={[
+                            { value: 1.3, label: '1.3' },
+                            { value: 2.5, label: '2.5 (默认)' },
+                            { value: 3.0, label: '3.0' }
+                        ]}
+                        valueLabelDisplay="auto"
+                    />
+                    <TextField
+                        margin="dense"
+                        label="难度因子值"
+                        type="number"
+                        fullWidth
+                        value={settings.efFactor}
+                        onChange={handleInputChange('efFactor')}
+                        inputProps={{
+                            step: 0.1,
+                            min: 1.3,
+                            max: 3.0
+                        }}
+                        variant="outlined"
+                        size="small"
+                        sx={{ mt: 2 }}
+                    />
+                    <FormHelperText>
+                        难度因子控制间隔增长率。值越低，复习越频繁；值越高，复习间隔增长越快。标准值为2.5。
+                    </FormHelperText>
+                </Box>
+
+                <Box sx={{ my: 3 }}>
+                    <Typography variant="body2" gutterBottom sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>间隔修正系数: {settings.intervalModifier.toFixed(2)}</span>
+                        <Tooltip title="此系数直接影响所有复习间隔。值越大，复习间隔越长。" arrow>
+                            <InfoIcon fontSize="small" color="action" sx={{ ml: 1, fontSize: '1rem', opacity: 0.8 }} />
+                        </Tooltip>
+                    </Typography>
+                    <Slider
+                        value={settings.intervalModifier}
+                        onChange={handleChange('intervalModifier')}
+                        min={0.5}
+                        max={2.0}
+                        step={0.1}
+                        marks={[
+                            { value: 0.5, label: '0.5' },
+                            { value: 1.0, label: '1.0 (默认)' },
+                            { value: 2.0, label: '2.0' }
+                        ]}
+                        valueLabelDisplay="auto"
+                    />
+                    <TextField
+                        margin="dense"
+                        label="间隔修正系数"
+                        type="number"
+                        fullWidth
+                        value={settings.intervalModifier}
+                        onChange={handleInputChange('intervalModifier')}
+                        inputProps={{
+                            step: 0.1,
+                            min: 0.5,
+                            max: 2.0
+                        }}
+                        variant="outlined"
+                        size="small"
+                        sx={{ mt: 2 }}
+                    />
+                    <FormHelperText>
+                        间隔修正系数直接与计算出的复习间隔相乘。值越大，记忆要求越严格，复习间隔越长。
+                    </FormHelperText>
+                </Box>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 3 }}>
+                <Button onClick={onClose} variant="outlined">取消</Button>
+                <Button
+                    onClick={handleSave}
+                    variant="contained"
+                    sx={{
+                        background: 'linear-gradient(90deg, #8E54E9, #4776E6)',
+                        boxShadow: '0 4px 10px rgba(71, 118, 230, 0.25)'
+                    }}
+                >
+                    保存设置
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+};
+
 function PlanSettingsPage() {
     const [plans, setPlans] = useState([]);
     const [activePlan, setActivePlan] = useState(null);
@@ -62,6 +247,7 @@ function PlanSettingsPage() {
     const [isEditing, setIsEditing] = useState(false);
     const [isCreatingNew, setIsCreatingNew] = useState(false);
     const [formData, setFormData] = useState({
+        name: '', // 新增
         targetWordbookId: '',
         dailyNewWordsTarget: 15,
         dailyReviewWordsTarget: 40,
@@ -111,6 +297,14 @@ function PlanSettingsPage() {
     const [messageType, setMessageType] = useState('success');
     const [selectedTabIndex, setSelectedTabIndex] = useState(0);
 
+    const [memoryCurveDialogOpen, setMemoryCurveDialogOpen] = useState(false);
+    const [memoryCurveSettings, setMemoryCurveSettings] = useState({
+        efFactor: 2.5,
+        intervalModifier: 1.0
+    });
+
+    const [weeklyReportEnabled, setWeeklyReportEnabled] = useState(false);
+
     const showSnackbar = (message, severity = 'success') => { setSnackbarMessage(message); setSnackbarSeverity(severity); setSnackbarOpen(true); };
     const handleSnackbarClose = (event, reason) => { if (reason === 'clickaway') { return; } setSnackbarOpen(false); };
 
@@ -139,13 +333,14 @@ function PlanSettingsPage() {
             const userPlans = plansData.plans || [];
             const currentActivePlan = userPlans.find(plan => plan.isActive) || null;
             const books = wordbooksData || [];
-            
+
             setPlans(userPlans);
             setActivePlan(currentActivePlan);
             setUserWordbooks(books);
 
             const defaultWordbookId = (books.length > 0) ? books[0]._id : '';
             let initialFormState = {
+                name: currentActivePlan?.name || '', // 新增
                 targetWordbookId: currentActivePlan?.targetWordbook || defaultWordbookId,
                 dailyNewWordsTarget: currentActivePlan?.dailyNewWordsTarget || 15,
                 dailyReviewWordsTarget: currentActivePlan?.dailyReviewWordsTarget || 40,
@@ -157,8 +352,32 @@ function PlanSettingsPage() {
             setDailyReviewCount(initialFormState.dailyReviewWordsTarget);
             setIsEditing(!!currentActivePlan);
 
+            // 同步邮件提醒、时间、周报开关
+            if (currentActivePlan) {
+                setReminderEnabled(!!currentActivePlan.reminderEnabled);
+                setReminderTime(currentActivePlan.reminderTime || '08:00');
+                setWeeklyReportEnabled(!!currentActivePlan.weeklyReportEnabled);
+            } else {
+                setReminderEnabled(false);
+                setReminderTime('08:00');
+                setWeeklyReportEnabled(false);
+            }
+
             if (initialFormState.targetWordbookId) {
                 fetchWordbookStats(initialFormState.targetWordbookId);
+            }
+
+            // 获取记忆曲线设置
+            try {
+                const memoryCurveData = await apiFetch('/api/plans/memory-curve');
+                if (memoryCurveData) {
+                    setMemoryCurveSettings({
+                        efFactor: memoryCurveData.efFactor || 2.5,
+                        intervalModifier: memoryCurveData.intervalModifier || 1.0
+                    });
+                }
+            } catch (err) {
+                console.warn("获取记忆曲线设置失败，使用默认值", err);
             }
 
         } catch (err) {
@@ -212,7 +431,11 @@ function PlanSettingsPage() {
             const dailyNew = parseInt(value, 10);
             if (!isNaN(dailyNew) && dailyNew > 0) {
                 const daysNeeded = Math.ceil(remainingNewWords / dailyNew);
-                suggestedEndDate = dayjs().add(daysNeeded - 1, 'day').format('YYYY-MM-DD');
+                // 确保日期格式正确
+                const endDateObj = dayjs().add(daysNeeded - 1, 'day');
+                suggestedEndDate = endDateObj.format('YYYY-MM-DD');
+                console.log("计算的结束日期:", suggestedEndDate);
+
                 suggestedReviewWords = Math.max(20, dailyNew * 2);
                 setSuggestion({ endDate: `预计 ${suggestedEndDate} 完成`, newWords: '', reviewWords: `建议每天复习 ${suggestedReviewWords} 个单词` });
                 setFormData(prev => ({ ...prev, planEndDate: suggestedEndDate, dailyReviewWordsTarget: suggestedReviewWords }));
@@ -273,8 +496,10 @@ function PlanSettingsPage() {
     };
 
     const handleCreateNewPlan = () => {
+        console.log("创建新计划");
         const defaultWordbookId = (userWordbooks.length > 0) ? userWordbooks[0]._id : '';
         setFormData({
+            name: '', // 新增
             targetWordbookId: defaultWordbookId,
             dailyNewWordsTarget: 15,
             dailyReviewWordsTarget: 40,
@@ -282,6 +507,21 @@ function PlanSettingsPage() {
         });
         setDailyNewWordsCount(15);
         setDailyReviewCount(40);
+
+        // 设置提醒和每周报告
+        setReminderEnabled(true);
+        setReminderTime('08:00');
+
+        // 明确设置每周报告为false
+        console.log("设置每周报告为false");
+        setWeeklyReportEnabled(false);
+
+        // 重置复习模式为默认值
+        setReviewModes([
+            { id: 1, name: '模式一', enabled: true },
+            { id: 2, name: '模式二', enabled: false },
+            { id: 3, name: '模式三', enabled: true }
+        ]);
         setIsCreatingNew(true);
         setSelectedTabIndex(plans.length); // 切换到新计划的tab
         if (defaultWordbookId) {
@@ -292,14 +532,48 @@ function PlanSettingsPage() {
     const handleSelectPlan = (planIndex) => {
         if (planIndex >= 0 && planIndex < plans.length) {
             const selectedPlan = plans[planIndex];
+            console.log("选择计划:", selectedPlan);
+
+            // 处理日期格式
+            let formattedEndDate = '';
+            if (selectedPlan.planEndDate) {
+                try {
+                    formattedEndDate = dayjs(selectedPlan.planEndDate).format('YYYY-MM-DD');
+                    console.log("格式化后的结束日期:", formattedEndDate);
+                } catch (err) {
+                    console.error("日期格式化错误:", err);
+                }
+            }
+
             setFormData({
+                name: selectedPlan.name || '', // 新增
                 targetWordbookId: selectedPlan.targetWordbook || '',
                 dailyNewWordsTarget: selectedPlan.dailyNewWordsTarget || 15,
                 dailyReviewWordsTarget: selectedPlan.dailyReviewWordsTarget || 40,
-                planEndDate: selectedPlan.planEndDate ? dayjs(selectedPlan.planEndDate).format('YYYY-MM-DD') : ''
+                planEndDate: formattedEndDate
             });
             setDailyNewWordsCount(selectedPlan.dailyNewWordsTarget || 15);
             setDailyReviewCount(selectedPlan.dailyReviewWordsTarget || 40);
+            setReminderEnabled(!!selectedPlan.reminderEnabled);
+            setReminderTime(selectedPlan.reminderTime || '08:00');
+
+            // 明确设置每周报告状态
+            const reportEnabled = selectedPlan.weeklyReportEnabled === true;
+            console.log("每周报告状态:", reportEnabled, "原始值:", selectedPlan.weeklyReportEnabled);
+            setWeeklyReportEnabled(reportEnabled);
+
+            // 设置复习模式
+            if (selectedPlan.reviewModes && Array.isArray(selectedPlan.reviewModes)) {
+                setReviewModes(selectedPlan.reviewModes);
+            } else {
+                // 如果没有复习模式设置，使用默认值
+                setReviewModes([
+                    { id: 1, name: '模式一', enabled: true },
+                    { id: 2, name: '模式二', enabled: false },
+                    { id: 3, name: '模式三', enabled: true }
+                ]);
+            }
+
             setIsCreatingNew(false);
             if (selectedPlan.targetWordbook) {
                 fetchWordbookStats(selectedPlan.targetWordbook);
@@ -321,15 +595,25 @@ function PlanSettingsPage() {
             showSnackbar("请选择一个目标单词书", "warning");
             return;
         }
+        if (!formData.name || formData.name.trim() === '') {
+            showSnackbar("请输入计划名称", "warning");
+            return;
+        }
         setIsSaving(true); setError('');
         try {
-            const payload = { 
+            const isCreate = isCreatingNew;
+            const payload = {
                 ...formData,
                 dailyNewWordsTarget: dailyNewWordsCount,
                 dailyReviewWordsTarget: dailyReviewCount,
                 reminderEnabled: reminderEnabled,
-                reminderTime: reminderTime
+                reminderTime: reminderTime,
+                weeklyReportEnabled: weeklyReportEnabled,
+                reviewModes: reviewModes
             };
+            if (selectedTabIndex < plans.length && !isCreatingNew) {
+                payload.planId = plans[selectedTabIndex]._id;
+            }
             if (!payload.planEndDate) {
                 delete payload.planEndDate;
             }
@@ -340,7 +624,56 @@ function PlanSettingsPage() {
             });
 
             await fetchData(); // 重新加载所有计划
-            setIsCreatingNew(false);
+
+            // 用后端返回的计划数据刷新所有表单和状态
+            let newPlan = null;
+            if (response && response.plan) {
+                newPlan = response.plan;
+            } else if (isCreate && Array.isArray(plans) && plans.length > 0) {
+                newPlan = plans[plans.length];
+            } else if (plans[selectedTabIndex]) {
+                newPlan = plans[selectedTabIndex];
+            }
+            if (newPlan) {
+                console.log("更新后的计划数据:", newPlan);
+
+                // 处理日期格式
+                let formattedEndDate = '';
+                if (newPlan.planEndDate) {
+                    try {
+                        formattedEndDate = dayjs(newPlan.planEndDate).format('YYYY-MM-DD');
+                        console.log("格式化后的结束日期:", formattedEndDate);
+                    } catch (err) {
+                        console.error("日期格式化错误:", err);
+                    }
+                }
+
+                setFormData({
+                    name: newPlan.name || '', // 新增
+                    targetWordbookId: newPlan.targetWordbook || '',
+                    dailyNewWordsTarget: newPlan.dailyNewWordsTarget || 15,
+                    dailyReviewWordsTarget: newPlan.dailyReviewWordsTarget || 40,
+                    planEndDate: formattedEndDate
+                });
+                setDailyNewWordsCount(newPlan.dailyNewWordsTarget || 15);
+                setDailyReviewCount(newPlan.dailyReviewWordsTarget || 40);
+                setReminderEnabled(!!newPlan.reminderEnabled);
+                setReminderTime(newPlan.reminderTime || '08:00');
+
+                // 明确设置每周报告状态
+                const reportEnabled = newPlan.weeklyReportEnabled === true;
+                console.log("每周报告状态:", reportEnabled, "原始值:", newPlan.weeklyReportEnabled);
+                setWeeklyReportEnabled(reportEnabled);
+
+                // 设置复习模式
+                if (newPlan.reviewModes && Array.isArray(newPlan.reviewModes)) {
+                    setReviewModes(newPlan.reviewModes);
+                }
+            }
+            if (isCreate) {
+                setSelectedTabIndex(plans.length);
+                setIsCreatingNew(false);
+            }
             showSnackbar("学习计划已成功保存并激活！", "success");
         } catch (err) {
             setError(`保存计划失败: ${err.message}`);
@@ -445,6 +778,20 @@ function PlanSettingsPage() {
         handleSavePlan();
     };
 
+    const saveMemoryCurveSettings = async (settings) => {
+        try {
+            await apiFetch('/api/plans/memory-curve', {
+                method: 'POST',
+                body: JSON.stringify(settings)
+            });
+            setMemoryCurveSettings(settings);
+            showSnackbar('记忆曲线设置已更新', 'success');
+        } catch (err) {
+            console.error("保存记忆曲线设置失败:", err);
+            showSnackbar(`保存记忆曲线设置失败: ${err.message}`, 'error');
+        }
+    };
+
     const getWordbookNameById = (wordbookId) => {
         const wordbook = userWordbooks.find(book => book._id === wordbookId);
         return wordbook ? wordbook.name : '未知单词书';
@@ -500,7 +847,7 @@ function PlanSettingsPage() {
     }
 
     return (
-        <Container maxWidth="md" className="animate-fade-in">
+        <Container maxWidth="lg" className="animate-fade-in">
             <Box sx={{ my: 4, textAlign: 'center' }}>
                 <Typography
                     component="h1"
@@ -545,8 +892,8 @@ function PlanSettingsPage() {
                             }}
                         >
                             {plans.map((plan, index) => (
-                                <Tab 
-                                    key={plan._id || index} 
+                                <Tab
+                                    key={plan._id || index}
                                     label={
                                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                             {plan.isActive && <CheckCircleOutlineIcon sx={{ mr: 1, color: earthToneColors.caramelBrown }} />}
@@ -555,10 +902,10 @@ function PlanSettingsPage() {
                                     }
                                 />
                             ))}
-                            <Tab 
-                                icon={<AddIcon />} 
+                            <Tab
+                                icon={<AddIcon />}
                                 iconPosition="start"
-                                label="新建计划" 
+                                label="新建计划"
                             />
                         </Tabs>
                     </Box>
@@ -584,7 +931,7 @@ function PlanSettingsPage() {
                                             left: 0,
                                             width: '100%',
                                             height: '6px',
-                                            background: isDarkMode 
+                                            background: isDarkMode
                                                 ? `linear-gradient(90deg, ${earthToneColors.caramelBrown}, ${earthToneColors.milkCoffee})`
                                                 : `linear-gradient(90deg, ${earthToneColors.caramelBrown}, ${earthToneColors.deepMilkTea})`,
                                             opacity: 0.7
@@ -605,9 +952,41 @@ function PlanSettingsPage() {
                                             学习目标设置
                                         </Typography>
                                     </Box>
-                                    
+
                                     <form onSubmit={handleSubmit}>
                                         <Grid container spacing={3}>
+                                            <Grid item xs={12} md={12}>
+                                                <Typography
+                                                    variant="subtitle1"
+                                                    sx={{
+                                                        fontWeight: 'medium',
+                                                        mb: 1,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        color: earthToneColors.milkCoffee
+                                                    }}
+                                                >
+                                                    <MenuBookIcon sx={{ mr: 0.8, fontSize: '1.2rem' }} />
+                                                    计划名称
+                                                </Typography>
+                                                <TextField
+                                                    name="name"
+                                                    value={formData.name}
+                                                    onChange={handleFormChange}
+                                                    placeholder="请输入计划名称"
+                                                    fullWidth
+                                                    variant="outlined"
+                                                    sx={{
+                                                        mb: 2,
+                                                        '& .MuiOutlinedInput-root': {
+                                                            '&.Mui-focused fieldset': {
+                                                                borderColor: earthToneColors.caramelBrown,
+                                                            },
+                                                        },
+                                                    }}
+                                                />
+                                            </Grid>
+
                                             <Grid item xs={12} md={12}>
                                                 <Typography
                                                     variant="subtitle1"
@@ -804,11 +1183,18 @@ function PlanSettingsPage() {
                                                 <TextField
                                                     type="date"
                                                     name="planEndDate"
-                                                    value={formData.planEndDate}
-                                                    onChange={(e) => handleFormChange(e)}
+                                                    value={formData.planEndDate || ''}
+                                                    onChange={(e) => {
+                                                        console.log("日期输入变更:", e.target.value);
+                                                        handleFormChange(e);
+                                                    }}
                                                     InputLabelProps={{ shrink: true }}
                                                     fullWidth
                                                     variant="outlined"
+                                                    placeholder="YYYY-MM-DD"
+                                                    inputProps={{
+                                                        min: dayjs().format('YYYY-MM-DD') // 设置最小日期为今天
+                                                    }}
                                                     sx={{
                                                         '& .MuiOutlinedInput-root': {
                                                             '&.Mui-focused fieldset': {
@@ -818,8 +1204,8 @@ function PlanSettingsPage() {
                                                     }}
                                                 />
                                                 {suggestion.endDate && (
-                                                    <FormHelperText 
-                                                        sx={{ 
+                                                    <FormHelperText
+                                                        sx={{
                                                             color: suggestion.endDate.includes('无效') || suggestion.endDate.includes('今天')
                                                                 ? 'error.main'
                                                                 : earthToneColors.caramelBrown
@@ -946,6 +1332,47 @@ function PlanSettingsPage() {
                                                     }}
                                                 />
                                             </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <Typography
+                                                    variant="subtitle1"
+                                                    sx={{
+                                                        fontWeight: 'medium',
+                                                        mb: 1.5,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        color: earthToneColors.milkCoffee
+                                                    }}
+                                                >
+                                                    邮件通知设置
+                                                </Typography>
+                                                <FormControlLabel
+                                                    control={
+                                                        <Switch
+                                                            checked={weeklyReportEnabled}
+                                                            onChange={(e) => {
+                                                                const newValue = e.target.checked;
+                                                                console.log("每周报告开关切换:", newValue);
+                                                                setWeeklyReportEnabled(newValue);
+                                                            }}
+                                                            sx={{
+                                                                '& .MuiSwitch-switchBase.Mui-checked': {
+                                                                    color: earthToneColors.caramelBrown,
+                                                                    '&:hover': {
+                                                                        backgroundColor: `rgba(166, 124, 82, 0.08)`,
+                                                                    },
+                                                                },
+                                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                                                    backgroundColor: earthToneColors.caramelBrown,
+                                                                },
+                                                            }}
+                                                        />
+                                                    }
+                                                    label="接收每周学习报告"
+                                                />
+                                                <FormHelperText>
+                                                    每周将收到一份学习进度报告及统计数据
+                                                </FormHelperText>
+                                            </Grid>
                                         </Grid>
 
                                         <Divider sx={{ my: 3 }} />
@@ -972,7 +1399,7 @@ function PlanSettingsPage() {
                                                     激活此计划
                                                 </Button>
                                             )}
-                                            
+
                                             {selectedTabIndex < plans.length && plans[selectedTabIndex] && plans[selectedTabIndex].isActive && (
                                                 <Button
                                                     variant="outlined"
@@ -998,7 +1425,7 @@ function PlanSettingsPage() {
                                                         startIcon={<DeleteOutlineIcon />}
                                                         onClick={() => handleDeletePlan(plans[selectedTabIndex]._id)}
                                                         disabled={isSaving}
-                                                        sx={{ 
+                                                        sx={{
                                                             px: 3,
                                                             py: 1,
                                                             mr: 2,
@@ -1034,6 +1461,105 @@ function PlanSettingsPage() {
                             </Fade>
                         </Grid>
                     </Grid>
+
+                    <Grid container spacing={3} sx={{ mt: 2 }}>
+                        <Grid item xs={12} md={6}>
+                            <Paper
+                                elevation={0}
+                                className="card-glass"
+                                sx={{
+                                    p: 3,
+                                    borderRadius: '16px',
+                                    height: '100%'
+                                }}
+                            >
+                                <Typography
+                                    variant="h6"
+                                    sx={{
+                                        mb: 2,
+                                        fontWeight: 'medium',
+                                        display: 'inline-flex',
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    <SettingsIcon sx={{ mr: 1.5 }} />
+                                    高级学习设置
+                                </Typography>
+
+                                <List disablePadding>
+                                    <ListItem
+                                        sx={{
+                                            px: 0,
+                                            borderBottom: '1px solid',
+                                            borderColor: 'divider'
+                                        }}
+                                    >
+                                        <ListItemButton
+                                            onClick={() => setMemoryCurveDialogOpen(true)}
+                                            sx={{
+                                                borderRadius: '8px',
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                                }
+                                            }}
+                                        >
+                                            <ListItemIcon>
+                                                <PsychologyIcon color="primary" />
+                                            </ListItemIcon>
+                                            <ListItemText
+                                                primary="记忆曲线参数设置"
+                                                secondary="自定义记忆算法的参数"
+                                            />
+                                            <ChevronRightIcon color="action" />
+                                        </ListItemButton>
+                                    </ListItem>
+
+                                    <ListItem
+                                        sx={{
+                                            px: 0
+                                        }}
+                                    >
+                                        <ListItemButton
+                                            sx={{
+                                                borderRadius: '8px',
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                                }
+                                            }}
+                                        >
+                                            <ListItemIcon>
+                                                <CloudDownloadIcon color="primary" />
+                                            </ListItemIcon>
+                                            <ListItemText
+                                                primary="导出学习数据"
+                                                secondary="将你的学习记录导出为文件"
+                                            />
+                                            <ChevronRightIcon color="action" />
+                                        </ListItemButton>
+                                    </ListItem>
+                                </List>
+
+                                <Box sx={{ mt: 3 }}>
+                                    <Alert
+                                        severity="info"
+                                        variant="outlined"
+                                        sx={{
+                                            borderRadius: '8px'
+                                        }}
+                                    >
+                                        高级设置可能影响学习效果，建议有经验的用户使用。
+                                    </Alert>
+                                </Box>
+                            </Paper>
+                        </Grid>
+                    </Grid>
+
+                    <MemoryCurveSettings
+                        open={memoryCurveDialogOpen}
+                        onClose={() => setMemoryCurveDialogOpen(false)}
+                        initialValues={memoryCurveSettings}
+                        onSave={saveMemoryCurveSettings}
+                    />
                 </>
             )}
 
@@ -1043,13 +1569,13 @@ function PlanSettingsPage() {
                 onClose={handleSnackbarClose}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >
-                <Alert 
-                    onClose={handleSnackbarClose} 
-                    severity={snackbarSeverity} 
-                    sx={{ 
-                        width: '100%', 
+                <Alert
+                    onClose={handleSnackbarClose}
+                    severity={snackbarSeverity}
+                    sx={{
+                        width: '100%',
                         borderRadius: '12px',
-                        backgroundColor: snackbarSeverity === 'success' 
+                        backgroundColor: snackbarSeverity === 'success'
                             ? `${earthToneColors.deepMilkTea}`
                             : undefined
                     }}

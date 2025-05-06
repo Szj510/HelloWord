@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const authMiddleware = require('../middleware/auth');
+const User = require('../models/User');
+const Word = require('../models/Word');
+const WordBook = require('../models/WordBook');
+const LearningRecord = require('../models/LearningRecord');
+const mongoose = require('mongoose');
 
 // @route   GET api/hello
 // @desc    测试 API 端点
@@ -8,13 +14,5 @@ router.get('/hello', (req, res) => {
   res.json({ message: 'Hello from Backend API!' });
 });
 
-// --- 未来添加其他路由 ---
-// 例如: 用户认证路由
-// const authRoutes = require('./auth');
-// router.use('/auth', authRoutes);
-
-// 例如: 单词学习路由
-// const learningRoutes = require('./learning');
-// router.use('/learning', learningRoutes);
-
+// 导出路由
 module.exports = router;

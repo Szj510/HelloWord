@@ -6,6 +6,197 @@ const Word = require('../models/Word'); // 引入 Word 模型
 const LearningRecord = require('../models/LearningRecord');
 const mongoose = require('mongoose'); // 用于验证 ObjectId
 
+// --- 获取预设单词书列表 ---
+// @route   GET api/wordbooks/presets
+// @desc    获取系统预设的单词书列表
+// @access  Public
+router.get('/presets', async (req, res) => {
+    try {
+        // 预设单词书列表
+        const presets = [
+            {
+                id: 'CET4',
+                name: '大学英语四级词汇',
+                description: '包含大学英语四级考试常见词汇，约4000个单词',
+                wordCount: 4000,
+                level: '中级',
+                category: '考试'
+            },
+            {
+                id: 'CET6', 
+                name: '大学英语六级词汇',
+                description: '包含大学英语六级考试常见词汇，约6000个单词',
+                wordCount: 6000,
+                level: '中高级',
+                category: '考试'
+            },
+            {
+                id: 'GaoKao',
+                name: '高考英语词汇',
+                description: '高中英语教学大纲规定的3500个单词和短语',
+                wordCount: 3500,
+                level: '中级',
+                category: '考试'
+            },
+            {
+                id: 'KaoYan',
+                name: '考研英语词汇',
+                description: '考研英语必备词汇，约5500个单词',
+                wordCount: 5500,
+                level: '高级',
+                category: '考试'
+            },
+            {
+                id: 'IELTS',
+                name: '雅思核心词汇',
+                description: 'IELTS考试必备词汇，涵盖听说读写各部分',
+                wordCount: 4500,
+                level: '高级',
+                category: '留学'
+            },
+            {
+                id: 'IELTS_Disorder',
+                name: '雅思词汇（乱序版）',
+                description: 'IELTS考试必备词汇（乱序学习）',
+                wordCount: 4500,
+                level: '高级',
+                category: '留学'
+            },
+            {
+                id: '4000EEW_Meaning',
+                name: '4000基本英语词汇',
+                description: '日常交流中最常用的4000个英语单词',
+                wordCount: 4000,
+                level: '初级',
+                category: '基础'
+            },
+            {
+                id: '4000EEW_Sentence',
+                name: '4000基本英语词汇（例句版）',
+                description: '带例句的4000基本英语词汇',
+                wordCount: 4000,
+                level: '初级',
+                category: '基础'
+            },
+            {
+                id: '2025KaoYan',
+                name: '2025考研红宝书词汇',
+                description: '2025年考研英语必备词汇大全',
+                wordCount: 5500,
+                level: '高级',
+                category: '考试'
+            },
+            {
+                id: '2026KaoYan',
+                name: '2026考研红宝书词汇',
+                description: '2026年考研英语必备词汇大全',
+                wordCount: 5500,
+                level: '高级',
+                category: '考试'
+            }
+        ];
+        
+        res.json(presets);
+    } catch (err) {
+        console.error('获取预设单词书列表错误:', err.message);
+        res.status(500).send('服务器错误');
+    }
+});
+
+// --- 从预设单词书导入创建新单词书 ---
+// @route   POST api/wordbooks/import
+// @desc    基于预设ID导入单词书
+// @access  Private
+router.post('/import', authMiddleware, async (req, res) => {
+    const { presetId } = req.body; // 获取预设ID
+    const userId = req.user.id;
+
+    // 1. 验证输入
+    if (!presetId) {
+        return res.status(400).json({ msg: '缺少 presetId 参数' });
+    }
+
+    // 预设ID映射到对应的标签和名称
+    const presetMap = {
+        'CET4': { tag: 'CET4', name: '大学英语四级词汇', description: '包含大学英语四级考试常见词汇' },
+        'CET6': { tag: 'CET6', name: '大学英语六级词汇', description: '包含大学英语六级考试常见词汇' },
+        'GaoKao': { tag: 'GaoKao', name: '高考英语词汇', description: '高中英语教学大纲规定的词汇' },
+        'KaoYan': { tag: 'KaoYan', name: '考研英语词汇', description: '考研英语必备词汇' },
+        'IELTS': { tag: 'IELTS', name: '雅思核心词汇', description: 'IELTS考试必备词汇' },
+        'IELTS_Disorder': { tag: 'IELTS_Disorder', name: '雅思词汇（乱序版）', description: 'IELTS考试必备词汇（乱序版）' },
+        '4000EEW_Meaning': { tag: '4000EEW_Meaning', name: '4000基本英语词汇', description: '日常交流中最常用的英语单词' },
+        '4000EEW_Sentence': { tag: '4000EEW_Sentence', name: '4000基本英语词汇（例句版）', description: '带例句的4000基本英语词汇' },
+        '2025KaoYan': { tag: '2025KaoYan', name: '2025考研红宝书词汇', description: '2025年考研英语必备词汇大全' },
+        '2026KaoYan': { tag: '2026KaoYan', name: '2026考研红宝书词汇', description: '2026年考研英语必备词汇大全' }
+    };
+
+    // 检查是否是有效的预设ID
+    if (!presetMap[presetId]) {
+        return res.status(400).json({ msg: `无效的预设单词书ID: ${presetId}` });
+    }
+
+    const { tag: dictionaryTag, name, description } = presetMap[presetId];
+
+    try {
+        // 2. 根据标签查找所有对应的单词 ID
+        // 使用 lean() 提高性能，因为只需要 _id
+        const words = await Word.find({ tags: dictionaryTag }).select('_id').lean();
+        const wordIds = words.map(w => w._id); // 提取 ObjectId 数组
+
+        if (wordIds.length === 0) {
+            return res.status(404).json({ msg: `未找到标签为 "${dictionaryTag}" 的单词，无法创建单词书` });
+        }
+
+        // 3. 根据标签设置默认的 level 和 category
+        let level = 'standard'; // 默认级别
+        let category = '考试';   // 默认分类
+        
+        if (presetId.includes('IELTS')) {
+            category = '留学';
+            level = 'advanced';
+        } else if (presetId.includes('CET4') || presetId.includes('GaoKao')) {
+            level = 'intermediate';
+        } else if (presetId.includes('CET6') || presetId.includes('KaoYan')) {
+            level = 'advanced';
+        } else if (presetId.includes('4000EEW')) {
+            category = '基础';
+            level = 'basic';
+        }
+
+        // 4. 创建新的单词书实例
+        const newWordBook = new WordBook({
+            name,                 // 使用预设的名称
+            description,          // 使用预设的描述
+            level,
+            category,
+            owner: userId,
+            words: wordIds,       // 直接使用查找到的单词 ID 数组
+            isPublic: false,      // 导入的单词书默认为用户私有
+        });
+
+        // 5. 保存单词书到数据库
+        const savedWordBook = await newWordBook.save();
+        
+        // 6. 为前端返回值添加totalWords字段
+        const wordbookWithStats = {
+            ...savedWordBook.toObject(),
+            totalWords: wordIds.length,
+            learnedCount: 0,
+            masteredCount: 0
+        };
+
+        // 7. 返回创建成功的单词书
+        res.status(201).json(wordbookWithStats);
+    } catch (err) {
+        console.error(`从预设ID "${presetId}" 导入单词书错误:`, err.message);
+        // 检查是否是唯一键冲突
+        if (err.code === 11000) {
+            return res.status(400).json({ msg: '创建单词书失败，可能名称已存在或存在唯一性问题' });
+        }
+        res.status(500).send('服务器错误');
+    }
+});
+
 // --- 创建新的单词书 ---
 // @route   POST api/wordbooks
 // @desc    创建一个新的单词书
@@ -226,73 +417,6 @@ router.post('/:id/words', authMiddleware, async (req, res) => {
     console.error('添加单词到单词书错误:', err.message);
     res.status(500).send('服务器错误');
   }
-});
-
-// --- 从预设词典标签导入创建新单词书 ---
-// @route   POST api/wordbooks/import
-// @desc    基于一个标签 (如 'CET4') 创建一个新的、预填充单词的单词书
-// @access  Private
-router.post('/import', authMiddleware, async (req, res) => {
-    const { dictionaryTag, name, description } = req.body; // 获取标签、新书名称、描述
-    const userId = req.user.id;
-
-    // 1. 验证输入
-    if (!dictionaryTag || !name) {
-        return res.status(400).json({ msg: '缺少 dictionaryTag 或 name 参数' });
-    }
-
-    // (可选) 验证 dictionaryTag 是否在预定义的标签列表内
-    const allowedTags = [
-        'CET4', 'CET6', 'GaoKao', 'KaoYan', 'IELTS', 'IELTS_Disorder', 
-        '4000EEW_Meaning', '4000EEW_Sentence', '2025KaoYan', '2026KaoYan', 'Special'
-    ];
-    if (!allowedTags.includes(dictionaryTag)) {
-        return res.status(400).json({ msg: `无效的词典标签: ${dictionaryTag}` });
-    }
-
-    try {
-        // 2. 根据标签查找所有对应的单词 ID
-        // 使用 lean() 提高性能，因为只需要 _id
-        const words = await Word.find({ tags: dictionaryTag }).select('_id').lean();
-        const wordIds = words.map(w => w._id); // 提取 ObjectId 数组
-
-        if (wordIds.length === 0) {
-            return res.status(404).json({ msg: `未找到标签为 "${dictionaryTag}" 的单词，无法创建单词书` });
-        }
-
-        // 3. (可选) 根据标签设置默认的 level 和 category
-        let level = dictionaryTag; // 简单地用标签作为级别
-        let category = '考试';    // 假设这些都是考试类，可以根据需要调整
-        if (dictionaryTag.includes('IELTS')) category = '留学';
-        // ... 其他映射规则 ...
-
-        // 4. 创建新的单词书实例
-        const newWordBook = new WordBook({
-            name,
-            description,
-            level: level,
-            category: category,
-            owner: userId,
-            words: wordIds, // 直接使用查找到的单词 ID 数组
-            isPublic: false, // 导入的单词书默认为用户私有
-        });
-
-        // 5. 保存单词书到数据库
-        const savedWordBook = await newWordBook.save();
-
-        // 6. 返回创建成功的单词书 (可以考虑是否填充单词信息)
-        // 不填充，让前端需要时再去获取详情
-        res.status(201).json(savedWordBook);
-
-    } catch (err) {
-        console.error(`从标签 "${dictionaryTag}" 导入单词书错误:`, err.message);
-        // 检查是否是唯一键冲突（例如用户尝试用同一个名字创建两次？）
-        // Mongoose 错误码 11000 通常表示唯一键冲突
-        if (err.code === 11000) {
-             return res.status(400).json({ msg: '创建单词书失败，可能名称已存在或存在唯一性问题' });
-        }
-        res.status(500).send('服务器错误');
-    }
 });
 
 // --- 删除单词书 ---

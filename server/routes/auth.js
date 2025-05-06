@@ -4,8 +4,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto'); // 用于生成随机验证码
 const User = require('../models/User');
-require('dotenv').config({ path: '../.env' });
-const sendEmail = require('../utils/emailSender');
+require('dotenv').config();
+const emailSender = require('../utils/emailSender');
 
 // --- 注册路由 ---
 // @route   POST api/auth/register
@@ -24,16 +24,16 @@ router.post('/register', async (req, res) => {
     let user = await User.findOne({ email });
     if (user) { return res.status(400).json({ msg: '该邮箱已被注册' }); }
 
+    // 创建新用户 (密码哈希会在User模型的pre-save钩子中自动处理)
     user = new User({ username, email, password }); // isVerified 默认为 false
-
-    // 哈希密码 (不变)
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
 
     // 生成6位数字验证码
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verificationToken = verificationCode;
-    user.verificationTokenExpires = Date.now() + 3600000; // 1小时后过期
+    // 设置验证码和过期时间
+    user.verificationCode = {
+      code: verificationCode,
+      expiresAt: new Date(Date.now() + 3600000) // 1小时后过期
+    }
 
     await user.save(); // 保存用户 (包含未验证状态和验证码)
 
@@ -56,7 +56,7 @@ router.post('/register', async (req, res) => {
         </div>`;
 
     try {
-      await sendEmail({
+      await emailSender.sendEmail({
         to: user.email,
         subject: emailSubject,
         text: emailText,
@@ -98,20 +98,30 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    // 1. 检查用户是否存在
-    const user = await User.findOne({ email });
+    // 1. 检查用户是否存在 (确保邮箱比较不区分大小写)
+    const user = await User.findOne({ email: email.toLowerCase() });
+    console.log('登录尝试:', email.toLowerCase());
+
     if (!user) {
+      console.log('用户不存在:', email);
       // 为了安全，不明确提示是邮箱不存在还是密码错误
       return res.status(400).json({ msg: '邮箱或密码无效' });
     }
 
+    console.log('找到用户:', user.email, '验证状态:', user.isVerified);
+    console.log('输入的密码:', password);
+    console.log('数据库中的哈希密码:', user.password);
+
     // 2. 比较密码
     const isMatch = await bcrypt.compare(password, user.password); // 比较提交的密码和数据库中哈希后的密码
+    console.log('密码匹配结果:', isMatch);
+
     if (!isMatch) {
       return res.status(400).json({ msg: '邮箱或密码无效' });
     }
 
     if (!user.isVerified) {
+        console.log('用户未验证:', user.email);
         // 可以选择提示用户，或者提供重新发送验证邮件的选项
         return res.status(401).json({ msg: '您的邮箱尚未验证，请检查您的收件箱。' });
     }
@@ -123,13 +133,20 @@ router.post('/login', async (req, res) => {
       }
     };
 
+    console.log('创建JWT Payload:', payload);
+    console.log('使用JWT_SECRET:', process.env.JWT_SECRET ? '已设置' : '未设置');
+
     // 4. 签发 JWT
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
       { expiresIn: '7d' }, // 保持和注册时一致或根据需要调整
       (err, token) => {
-        if (err) throw err;
+        if (err) {
+          console.error('JWT签名错误:', err);
+          throw err;
+        }
+        console.log('JWT签名成功，返回token');
         res.json({ token }); // 登录成功，返回 token
       }
     );
@@ -149,10 +166,10 @@ router.get('/verify/:token', async (req, res) => {
     const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
     try {
-        // 1. 查找用户，条件：匹配 verificationToken 且 token 未过期
+        // 1. 查找用户，条件：匹配验证码且未过期
         const user = await User.findOne({
-            verificationToken: verificationToken,
-            verificationTokenExpires: { $gt: Date.now() } // 检查过期时间
+            'verificationCode.code': verificationToken,
+            'verificationCode.expiresAt': { $gt: new Date() } // 检查过期时间
         });
 
         // 2. 如果未找到用户或 token 已过期
@@ -164,8 +181,7 @@ router.get('/verify/:token', async (req, res) => {
 
         // 3. 找到用户，更新用户状态
         user.isVerified = true;
-        user.verificationToken = undefined; // 清除 token
-        user.verificationTokenExpires = undefined; // 清除过期时间
+        user.verificationCode = undefined; // 清除验证码
         await user.save();
 
         console.log(`用户 ${user.email} 邮箱验证成功。`);
@@ -186,7 +202,7 @@ router.get('/verify/:token', async (req, res) => {
 // @access  Public
 router.post('/verify-code', async (req, res) => {
     const { email, verificationCode } = req.body;
-    
+
     if (!email || !verificationCode) {
         return res.status(400).json({ msg: '请提供邮箱和验证码' });
     }
@@ -195,8 +211,8 @@ router.post('/verify-code', async (req, res) => {
         // 1. 查找用户，条件：匹配邮箱和验证码，且验证码未过期
         const user = await User.findOne({
             email: email,
-            verificationToken: verificationCode,
-            verificationTokenExpires: { $gt: Date.now() } // 检查过期时间
+            'verificationCode.code': verificationCode,
+            'verificationCode.expiresAt': { $gt: new Date() } // 检查过期时间
         });
 
         // 2. 如果未找到用户或验证码已过期
@@ -206,8 +222,7 @@ router.post('/verify-code', async (req, res) => {
 
         // 3. 找到用户，更新用户状态
         user.isVerified = true;
-        user.verificationToken = undefined; // 清除验证码
-        user.verificationTokenExpires = undefined; // 清除过期时间
+        user.verificationCode = undefined; // 清除验证码
         await user.save();
 
         console.log(`用户 ${user.email} 邮箱验证成功 (通过验证码)。`);
@@ -227,14 +242,14 @@ router.post('/verify-code', async (req, res) => {
 // @access  Public
 router.post('/resend-verification', async (req, res) => {
     const { email } = req.body;
-    
+
     if (!email) {
         return res.status(400).json({ msg: '请提供邮箱地址' });
     }
 
     try {
         // 1. 查找未验证的用户
-        const user = await User.findOne({ 
+        const user = await User.findOne({
             email: email,
             isVerified: false
         });
@@ -245,8 +260,11 @@ router.post('/resend-verification', async (req, res) => {
 
         // 2. 生成新的验证码
         const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-        user.verificationToken = verificationCode;
-        user.verificationTokenExpires = Date.now() + 3600000; // 1小时后过期
+        // 设置验证码和过期时间
+        user.verificationCode = {
+            code: verificationCode,
+            expiresAt: new Date(Date.now() + 3600000) // 1小时后过期
+        };
         await user.save();
 
         // 3. 发送新的验证码邮件
@@ -267,7 +285,7 @@ router.post('/resend-verification', async (req, res) => {
                 <p style="font-size: 0.9em; color: #666;">HelloWord 团队</p>
             </div>`;
 
-        await sendEmail({
+        await emailSender.sendEmail({
             to: user.email,
             subject: emailSubject,
             text: emailText,

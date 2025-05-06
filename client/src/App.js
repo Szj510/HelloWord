@@ -16,7 +16,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 
 // 引入自定义主题
 import { getActiveTheme, blueGrayColors, earthToneColors, greenBeigeColors } from './theme/themeConfig';
-import { ThemeProvider, useTheme, COLOR_SCHEMES } from './context/ThemeContext';
+import { ThemeProvider, useTheme, COLOR_SCHEMES, THEME_MODES } from './context/ThemeContext';
 
 // 引入页面组件
 import RegisterPage from './pages/RegisterPage';
@@ -34,6 +34,7 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyCodePage from './pages/VerifyCodePage';
 import PlanSettingsPage from './pages/PlanSettingsPage';
 import NotebookPage from './pages/NotebookPage';
+
 // 引入私有路由组件 和 Auth Context
 import PrivateRoute from './components/PrivateRoute';
 import { useAuth } from './context/AuthContext';
@@ -41,7 +42,7 @@ import { useAuth } from './context/AuthContext';
 // Navbar 组件
 const Navbar = () => {
   const { isAuthenticated, logout } = useAuth();
-  const { colorScheme, changeColorScheme, COLOR_SCHEMES } = useTheme();
+  const { colorScheme, changeColorScheme, COLOR_SCHEMES, themeMode, toggleThemeMode, THEME_MODES } = useTheme();
   const navigate = useNavigate();
   
   // 配色方案切换菜单
@@ -84,7 +85,9 @@ const Navbar = () => {
       className="modern-navbar"
       sx={{
         marginBottom: 4,
-        background: 'rgba(255, 255, 255, 0.85)',
+        background: themeMode === THEME_MODES.DARK ? 
+          'rgba(30, 30, 30, 0.85)' : 
+          'rgba(255, 255, 255, 0.85)',
         backdropFilter: 'blur(10px)',
         boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)'
       }}
@@ -104,6 +107,38 @@ const Navbar = () => {
         >
           HelloWord
         </Typography>
+
+        <IconButton
+          onClick={toggleThemeMode}
+          color="inherit"
+          sx={{
+            mr: 1,
+            color: colors().accent,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'rotate(180deg)'
+            }
+          }}
+          aria-label="切换暗色/亮色模式"
+        >
+          {themeMode === THEME_MODES.DARK ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          )}
+        </IconButton>
 
         <IconButton
           onClick={handleThemeMenuOpen}
@@ -400,6 +435,41 @@ const Navbar = () => {
   );
 };
 
+// 页脚组件
+const Footer = () => {
+  const { colorScheme } = useTheme();
+  const currentTheme = getActiveTheme(colorScheme);
+  const themeColors = currentTheme.palette.colorScheme;
+  
+  return (
+    <Box 
+      component="footer" 
+      sx={{
+        py: 3,
+        px: 2,
+        mt: 'auto',
+        backgroundColor: 'transparent',
+        borderTop: `1px solid ${themeColors.border}`,
+        textAlign: 'center'
+      }}
+    >
+      <Container maxWidth="lg">
+        <Typography variant="body2" color={themeColors.secondaryText}>
+          Hello Word App - Version 3.0 &copy; {new Date().getFullYear()}
+        </Typography>
+        <Box sx={{ mt: 1, display: 'flex', justifyContent: 'center', gap: 3 }}>
+          <Typography variant="caption" color={themeColors.secondaryText}>
+            智能英语单词学习应用
+          </Typography>
+          <Typography variant="caption" color={themeColors.secondaryText} component="a" href="https://github.com/Szj510/HelloWord" sx={{ textDecoration: 'none', color: 'inherit' }}>
+            GitHub
+          </Typography>
+        </Box>
+      </Container>
+    </Box>
+  );
+};
+
 // 辅助函数: 将十六进制颜色转换为RGB格式
 const hexToRgb = (hex) => {
   // 移除可能的#前缀
@@ -450,6 +520,7 @@ const ThemedApp = () => {
             </Route>
           </Routes>
         </Container>
+        <Footer />
       </Router>
     </MuiThemeProvider>
   );

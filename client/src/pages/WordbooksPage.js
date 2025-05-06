@@ -30,6 +30,11 @@ import Fade from '@mui/material/Fade';
 import Grow from '@mui/material/Grow';
 import Tooltip from '@mui/material/Tooltip';
 import Paper from '@mui/material/Paper';
+import RadioGroup from '@mui/material/RadioGroup';
+import Radio from '@mui/material/Radio';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import FormControl from '@mui/material/FormControl';
+import FormLabel from '@mui/material/FormLabel';
 
 // 图标
 import AddIcon from '@mui/icons-material/Add';
@@ -41,6 +46,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MoodIcon from '@mui/icons-material/Mood';
 import DashboardCustomizeIcon from '@mui/icons-material/DashboardCustomize';
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 
 function WordbooksPage() {
     const [wordbooks, setWordbooks] = useState([]);
@@ -58,6 +64,12 @@ function WordbooksPage() {
         message: '',
         severity: 'success'
     });
+    
+    // 添加导入预设单词书相关状态
+    const [importDialogOpen, setImportDialogOpen] = useState(false);
+    const [presetWordbooks, setPresetWordbooks] = useState([]);
+    const [selectedPreset, setSelectedPreset] = useState('');
+    const [loadingPresets, setLoadingPresets] = useState(false);
     
     // 获取当前主题和配色方案
     const { colorScheme } = useTheme();
@@ -96,6 +108,58 @@ function WordbooksPage() {
 
         fetchWordbooks();
     }, []);
+    
+    // 获取预设单词书列表
+    const fetchPresetWordbooks = async () => {
+        setLoadingPresets(true);
+        try {
+            const data = await apiFetch('/api/wordbooks/presets');
+            setPresetWordbooks(data || []);
+            if (data && data.length > 0) {
+                setSelectedPreset(data[0].id);  // 默认选择第一个预设
+            }
+        } catch (err) {
+            showSnackbar(`获取预设单词书失败: ${err.message}`, 'error');
+        } finally {
+            setLoadingPresets(false);
+        }
+    };
+    
+    // 打开导入预设单词书对话框
+    const handleOpenImportDialog = () => {
+        fetchPresetWordbooks();
+        setImportDialogOpen(true);
+    };
+    
+    // 关闭导入对话框
+    const handleCloseImportDialog = () => {
+        setImportDialogOpen(false);
+    };
+    
+    // 导入预设单词书
+    const handleImportPreset = async () => {
+        if (!selectedPreset) {
+            showSnackbar('请选择要导入的单词书', 'error');
+            return;
+        }
+        
+        setDialogLoading(true);
+        try {
+            const data = await apiFetch('/api/wordbooks/import', {
+                method: 'POST',
+                body: JSON.stringify({ presetId: selectedPreset }),
+            });
+            
+            // 添加到现有列表
+            setWordbooks([...wordbooks, data]);
+            setImportDialogOpen(false);
+            showSnackbar('单词书导入成功！', 'success');
+        } catch (err) {
+            showSnackbar(`导入单词书失败: ${err.message}`, 'error');
+        } finally {
+            setDialogLoading(false);
+        }
+    };
 
     // 处理新建单词书对话框
     const handleOpenNewDialog = () => {
@@ -269,27 +333,51 @@ function WordbooksPage() {
                     <BookIcon sx={{ mr: 2, fontSize: '2rem', color: themeColors.accent || '#A67C52' }} />
                     我的单词书
                 </Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleOpenNewDialog}
-                    sx={{
-                        borderRadius: '50px',
-                        py: 1.3,
-                        px: 3,
-                        background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
-                        boxShadow: `0 8px 16px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.3)'}`,
-                        fontWeight: 'bold',
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                            boxShadow: `0 12px 20px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.4)'}`,
-                            transform: 'translateY(-3px)'
-                        },
-                    }}
-                    className="hover-lift"
-                >
-                    新建单词书
-                </Button>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button
+                        variant="outlined"
+                        startIcon={<AddIcon />}
+                        onClick={handleOpenImportDialog}
+                        sx={{
+                            borderRadius: '50px',
+                            py: 1.3,
+                            px: 3,
+                            borderColor: themeColors.accent || '#A67C52',
+                            color: themeColors.accent || '#A67C52',
+                            fontWeight: 'bold',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                borderColor: themeColors.secondary || '#C4A484',
+                                backgroundColor: themeColors.hoverBg || 'rgba(166, 124, 82, 0.08)',
+                                transform: 'translateY(-3px)'
+                            },
+                        }}
+                        className="hover-lift"
+                    >
+                        导入预设单词书
+                    </Button>
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={handleOpenNewDialog}
+                        sx={{
+                            borderRadius: '50px',
+                            py: 1.3,
+                            px: 3,
+                            background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                            boxShadow: `0 8px 16px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.3)'}`,
+                            fontWeight: 'bold',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                boxShadow: `0 12px 20px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.4)'}`,
+                                transform: 'translateY(-3px)'
+                            },
+                        }}
+                        className="hover-lift"
+                    >
+                        新建单词书
+                    </Button>
+                </Box>
             </Box>
 
             {/* 加载状态 */}
@@ -805,6 +893,141 @@ function WordbooksPage() {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
+
+            {/* 导入预设单词书对话框 */}
+            <Dialog
+                open={importDialogOpen}
+                onClose={handleCloseImportDialog}
+                PaperProps={{
+                    sx: {
+                        borderRadius: '16px',
+                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                        backgroundColor: themeColors.primary || '#F3E9DD'
+                    },
+                    elevation: 2
+                }}
+            >
+                <DialogTitle 
+                    sx={{ 
+                        background: `linear-gradient(135deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                        color: themeColors.light || '#F8F4E9',
+                        py: 2,
+                        display: 'flex',
+                        alignItems: 'center'
+                    }}
+                >
+                    <CloudDownloadIcon sx={{ mr: 1 }} /> 导入预设单词书
+                </DialogTitle>
+                <DialogContent sx={{ mt: 2, minWidth: '400px', maxHeight: '60vh' }}>
+                    {loadingPresets ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                            <CircularProgress sx={{ color: themeColors.accent || '#A67C52' }} />
+                        </Box>
+                    ) : (
+                        presetWordbooks.length === 0 ? (
+                            <Alert 
+                                severity="info" 
+                                sx={{ 
+                                    mt: 1,
+                                    borderRadius: '8px'
+                                }}
+                            >
+                                没有可用的预设单词书
+                            </Alert>
+                        ) : (
+                            <FormControl component="fieldset" fullWidth>
+                                <FormLabel 
+                                    component="legend"
+                                    sx={{
+                                        color: themeColors.accent || '#A67C52',
+                                        mb: 1
+                                    }}
+                                >
+                                    请选择要导入的单词书
+                                </FormLabel>
+                                <RadioGroup
+                                    value={selectedPreset}
+                                    onChange={(e) => setSelectedPreset(e.target.value)}
+                                >
+                                    {presetWordbooks.map((preset) => (
+                                        <FormControlLabel
+                                            key={preset.id}
+                                            value={preset.id}
+                                            control={
+                                                <Radio 
+                                                    sx={{
+                                                        '&.Mui-checked': {
+                                                            color: themeColors.accent || '#A67C52',
+                                                        }
+                                                    }}
+                                                />
+                                            }
+                                            label={
+                                                <Box>
+                                                    <Typography variant="subtitle1" sx={{ 
+                                                        fontWeight: 'medium',
+                                                        color: themeColors.text || '#3E2723' // 确保文本颜色与主题匹配
+                                                    }}>
+                                                        {preset.name}
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{
+                                                        color: themeColors.secondary || '#C4A484' // 使用主题的次要颜色
+                                                    }}>
+                                                        {preset.description || '单词数量：' + (preset.wordCount || 'N/A')}
+                                                    </Typography>
+                                                </Box>
+                                            }
+                                            sx={{
+                                                border: `1px solid ${themeColors.borderColor || 'rgba(166, 124, 82, 0.2)'}`,
+                                                borderRadius: '8px',
+                                                mb: 1,
+                                                py: 1,
+                                                px: 1,
+                                                width: '100%',
+                                                margin: 0,
+                                                '&:hover': {
+                                                    backgroundColor: themeColors.hoverBg || 'rgba(166, 124, 82, 0.08)',
+                                                },
+                                            }}
+                                        />
+                                    ))}
+                                </RadioGroup>
+                            </FormControl>
+                        )
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 3 }}>
+                    <Button 
+                        onClick={handleCloseImportDialog}
+                        sx={{
+                            color: themeColors.accent || '#A67C52',
+                            borderRadius: '8px',
+                            '&:hover': {
+                                backgroundColor: themeColors.hoverBg || 'rgba(166, 124, 82, 0.08)'
+                            }
+                        }}
+                    >
+                        取消
+                    </Button>
+                    <Button 
+                        onClick={handleImportPreset} 
+                        variant="contained" 
+                        disabled={dialogLoading || loadingPresets || presetWordbooks.length === 0}
+                        startIcon={<CloudDownloadIcon />}
+                        sx={{
+                            borderRadius: '8px',
+                            background: `linear-gradient(90deg, ${themeColors.accent || '#A67C52'}, ${themeColors.secondary || '#C4A484'})`,
+                            boxShadow: `0 4px 12px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.2)'}`,
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                boxShadow: `0 6px 15px ${themeColors.boxShadow || 'rgba(166, 124, 82, 0.3)'}`,
+                            }
+                        }}
+                    >
+                        {dialogLoading ? <div className="spinner" style={{ width: 24, height: 24 }} /> : '导入'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Container>
     );
 }

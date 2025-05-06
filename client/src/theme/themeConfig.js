@@ -1,6 +1,6 @@
 import { createTheme } from '@mui/material/styles';
 
-// 定义记忆模式的标记颜色（与配色无关的功能性颜色）
+// 基础记忆模式的标记颜色
 export const memoryColors = {
   // 专注记忆模式的标记颜色
   mainColor: '#F85D5D',      // 主色调 - 红色
@@ -46,6 +46,14 @@ export const blueGrayColors = {
     c3: '#6C7C99',
     c4: '#A9B6CB', 
     c5: '#3E4C63'
+  },
+  // 主题特定记忆颜色
+  memoryTheme: {
+    level1: '#5A6ACF', // 蓝灰色系记忆层级1
+    level2: '#7487E8',
+    level3: '#90A3FF',
+    level4: '#B3C6FF',
+    level5: '#CED8FF'
   }
 };
 
@@ -69,6 +77,14 @@ export const earthToneColors = {
     c3: '#D2B48C',
     c4: '#F9F5F0',
     c5: '#FAF7F2'
+  },
+  // 主题特定记忆颜色
+  memoryTheme: {
+    level1: '#A67C52', // 奶茶色系记忆层级1
+    level2: '#C49C77',
+    level3: '#D2B48C',
+    level4: '#E6D5C1',
+    level5: '#F9F5F0'
   }
 };
 
@@ -92,6 +108,14 @@ export const greenBeigeColors = {
     c3: '#A0C1A3',
     c4: '#D6E5D8',
     c5: '#EBF5EC'
+  },
+  // 主题特定记忆颜色
+  memoryTheme: {
+    level1: '#57744A', // 绿米色系记忆层级1
+    level2: '#6A8D6D',
+    level3: '#80A184',
+    level4: '#A0C1A3',
+    level5: '#D6E5D8'
   }
 };
 
@@ -122,9 +146,10 @@ function createAppTheme(colorSet) {
       colorScheme: {
         ...colorSet
       },
-      // 保留记忆模式颜色
+      // 保留记忆模式颜色，但增加主题特定版本
       memory: {
-        ...memoryColors
+        ...memoryColors,
+        themed: colorSet.memoryTheme // 添加主题特定的记忆颜色
       }
     },
     typography: {
@@ -285,5 +310,19 @@ export const getActiveTheme = (colorScheme) => {
       return greenBeigeTheme;
     default:
       return greenBeigeTheme; // 默认使用绿米色系
+  }
+};
+
+// 获取适配当前主题的记忆级别颜色
+export const getThemedMemoryColors = (colorScheme) => {
+  switch (colorScheme) {
+    case 'blue-gray':
+      return blueGrayColors.memoryTheme;
+    case 'earth-tone':
+      return earthToneColors.memoryTheme;
+    case 'green-beige':
+      return greenBeigeColors.memoryTheme;
+    default:
+      return greenBeigeColors.memoryTheme;
   }
 };

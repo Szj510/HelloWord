@@ -4,14 +4,17 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { AuthProvider } from './context/AuthContext'; // <--- 引入 AuthProvider
+import { ThemeProvider } from './context/ThemeContext'; // <--- 引入 ThemeProvider
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    {/* 使用 AuthProvider 包裹 App 组件 */}
-    <AuthProvider> {/* <--- 包裹 */}
-      <App />
-    </AuthProvider> {/* <--- 包裹 */}
+    {/* 使用 Provider 嵌套包裹 App 组件 */}
+    <AuthProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </AuthProvider>
   </React.StrictMode>
 );
 
