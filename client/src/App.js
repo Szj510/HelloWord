@@ -34,6 +34,8 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyCodePage from './pages/VerifyCodePage';
 import PlanSettingsPage from './pages/PlanSettingsPage';
 import NotebookPage from './pages/NotebookPage';
+import VocabularyTestPage from './pages/VocabularyTestPage';
+import VocabularyTestHistoryPage from './pages/VocabularyTestHistoryPage';
 
 // 引入私有路由组件 和 Auth Context
 import PrivateRoute from './components/PrivateRoute';
@@ -362,6 +364,38 @@ const Navbar = () => {
               学习计划
             </Button>
             <Button
+              component={Link}
+              to="/vocabulary-test"
+              className="nav-link"
+              sx={{
+                borderRadius: '8px',
+                transition: 'all 0.3s ease',
+                color: colors().accent,
+                '&:hover': {
+                  backgroundColor: `rgba(${hexToRgb(colors().accent)}, 0.1)`,
+                  transform: 'translateY(-2px)'
+                }
+              }}
+            >
+              词汇量测试
+            </Button>
+            <Button
+              component={Link}
+              to="/vocabulary-test-history"
+              className="nav-link"
+              sx={{
+                borderRadius: '8px',
+                transition: 'all 0.3s ease',
+                color: colors().accent,
+                '&:hover': {
+                  backgroundColor: `rgba(${hexToRgb(colors().accent)}, 0.1)`,
+                  transform: 'translateY(-2px)'
+                }
+              }}
+            >
+              词汇量测试历史
+            </Button>
+            <Button
               onClick={handleLogout}
               sx={{
                 borderRadius: '8px',
@@ -517,6 +551,9 @@ const ThemedApp = () => {
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/plan-settings" element={<PlanSettingsPage />} />
               <Route path="/notebook" element={<NotebookPage />} />
+              <Route path="/vocabulary-test" element={<VocabularyTestPage />} />
+              <Route path="/vocabulary-test/:testId" element={<VocabularyTestPage />} />
+              <Route path="/vocabulary-test-history" element={<VocabularyTestHistoryPage />} />
             </Route>
           </Routes>
         </Container>

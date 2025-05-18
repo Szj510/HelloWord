@@ -648,19 +648,90 @@ function HomePage() {
                                             width: '40px',
                                             height: '40px',
                                             borderRadius: '50%',
-                                            background: `linear-gradient(135deg, rgba(${hexToRgb(themeColors.secondary)}, 0.2), rgba(${hexToRgb(themeColors.accent)}, 0.2))`,
+                                            backgroundColor: `rgba(${hexToRgb(themeColors.accent)}, 0.1)`,
                                         }}
                                     >
-                                        <span 
-                                            role="img" 
-                                            aria-label="statistics" 
-                                            style={{ fontSize: '1.4rem' }}
-                                        >
-                                            📊
-                                        </span>
+                                        <span role="img" aria-label="stats">📊</span>
                                     </Box>
-                                    学习总览
+                                    学习统计
                                 </Typography>
+                                
+                                {/* 添加词汇量测试入口 */}
+                                <Box 
+                                    sx={{ 
+                                        mb: 4,
+                                        p: 3,
+                                        borderRadius: '16px',
+                                        background: `linear-gradient(135deg, rgba(${hexToRgb(themeColors.accent)}, 0.1), rgba(${hexToRgb(themeColors.tertiary)}, 0.1))`,
+                                        border: `1px dashed rgba(${hexToRgb(themeColors.accent)}, 0.3)`,
+                                        transition: 'all 0.3s ease',
+                                        '&:hover': {
+                                            transform: 'translateY(-3px)',
+                                            boxShadow: `0 8px 25px rgba(${hexToRgb(themeColors.accent)}, 0.15)`
+                                        }
+                                    }}
+                                >
+                                    <Box 
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'flex-start',
+                                            mb: 2
+                                        }}
+                                    >
+                                        <Box 
+                                            sx={{
+                                                width: '50px',
+                                                height: '50px',
+                                                borderRadius: '50%',
+                                                background: `linear-gradient(135deg, rgba(${hexToRgb(themeColors.primary)}, 0.3), rgba(${hexToRgb(themeColors.secondary)}, 0.3))`,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                mr: 2,
+                                                flexShrink: 0
+                                            }}
+                                        >
+                                            <span 
+                                                role="img" 
+                                                aria-label="test"
+                                                style={{ fontSize: '1.8rem' }}
+                                            >
+                                                🧠
+                                            </span>
+                                        </Box>
+                                        <Box>
+                                            <Typography variant="h6" sx={{ fontWeight: 500, mb: 0.5, color: themeColors.text }}>
+                                                词汇量测试
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ color: themeColors.text }}>
+                                                通过智能测试算法，精准评估您的英语词汇量水平
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                    
+                                    <Button
+                                        component={RouterLink}
+                                        to="/vocabulary-test"
+                                        fullWidth
+                                        sx={{
+                                            background: `linear-gradient(90deg, ${themeColors.primary}, ${themeColors.secondary})`,
+                                            color: 'white',
+                                            borderRadius: '30px',
+                                            padding: '8px 16px',
+                                            transition: 'all 0.3s ease',
+                                            mt: 1,
+                                            boxShadow: `0 4px 15px rgba(${hexToRgb(themeColors.secondary)}, 0.3)`,
+                                            '&:hover': {
+                                                transform: 'translateY(-2px)',
+                                                boxShadow: `0 6px 20px rgba(${hexToRgb(themeColors.secondary)}, 0.4)`,
+                                            }
+                                        }}
+                                    >
+                                        开始测试
+                                    </Button>
+                                </Box>
+                                
+                                {/* 原有的统计信息 */}
                                 {loadingStats ? 
                                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
                                         <div className="spinner" />

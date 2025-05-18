@@ -22,6 +22,8 @@ Demo:
 ![学习报告](./assets/学习报告.png)
 ![学习计划](./assets/学习计划.png)
 ![学习页面](./assets/学习页面.png)
+![词汇量测试](./assets/词汇量测试.png)
+![词汇量测试历史](./assets/词汇量测试历史.png)
 
 ## 版本历史与切换
 
@@ -38,14 +40,15 @@ Hello Word 应用的主要版本演进：
 git clone https://github.com/Szj510/HelloWord.git
 cd HelloWord
 
+# 切换到Version 3.0版本
+git checkout 9653426
+
 # 切换到Version 2.0版本
 git checkout fd98dcc
 
 # 切换到Version 1.0版本
 git checkout f290461
 ```
-
-切换版本后，请按照该版本 README 中的说明重新安装依赖并启动应用。
 
 ## 完整功能介绍
 
@@ -95,6 +98,12 @@ git checkout f290461
 - **薄弱点分析**：识别错误率高的单词，提供针对性复习
 - **周报告**：自动生成每周学习总结和改进建议
 
+### 词汇量测试
+
+- **词汇量测试**：通过智能测试算法，精准评估您的英语词汇量水平
+- **测试结果分析**：提供您的词汇量估计和英语水平级别
+- **测试历史记录**：查看以往测试结果和趋势
+
 ### 支持的单词本
 
 - **2025 考研红宝书**
@@ -132,12 +141,12 @@ git checkout f290461
 
 ### 前提条件
 
-- Node.js (v14.0.0 或更高版本)
-- npm (v6.0.0 或更高版本)
+- Node.js (v20.0.0 或更高版本)
+- npm (v10.0.0 或更高版本)
 - MongoDB (v4.0 或更高版本)
 - SMTP 服务器（用于发送验证邮件）
 
-### 部署步骤
+### 手动部署步骤
 
 #### 1. 克隆仓库
 
@@ -146,7 +155,53 @@ git clone https://github.com/Szj510/HelloWord.git
 cd HelloWord
 ```
 
-#### 2. 设置后端
+#### 2. 设置 MongoDB 数据库
+
+##### 选项 1：使用 MongoDB Compass（图形界面）
+
+1. 下载并安装 [MongoDB Compass](https://www.mongodb.com/products/compass)
+2. 打开 MongoDB Compass，连接到 `mongodb://localhost:27017`
+3. 创建名为 `helloword` 的数据库
+
+##### 选项 2：使用 MongoDB Shell（命令行）
+
+1. 安装 MongoDB Shell
+
+   ```bash
+   # 对于 Windows，使用以下命令（需要先安装 MongoDB 或者单独下载 mongosh）
+   # 下载地址: https://www.mongodb.com/try/download/shell
+
+   # 对于 macOS (使用 Homebrew)
+   brew install mongosh
+
+   # 对于 Linux (Ubuntu/Debian)
+   sudo apt-get install -y mongodb-mongosh
+   ```
+
+2. 连接到 MongoDB 服务器
+
+   ```bash
+   # 标准连接（无身份验证）
+   mongosh "mongodb://localhost:27017"
+
+   # 带身份验证的连接
+   mongosh "mongodb://username:password@localhost:27017"
+
+   # 连接到特定数据库并使用身份验证
+   mongosh "mongodb://username:password@localhost:27017/helloword"
+   ```
+
+3. 创建和使用数据库
+
+   ```javascript
+   // 创建并切换到 helloword 数据库
+   use helloword
+
+   // 验证当前选择的数据库
+   db
+   ```
+
+#### 3. 设置后端
 
 ```bash
 cd server
@@ -183,13 +238,15 @@ FRONTEND_URL=http://localhost:3000
 node seed/seedWords.js
 ```
 
-启动后端服务器：
+#### 4. 启动后端服务器
 
 ```bash
 npm start
+# or
+npm run dev
 ```
 
-#### 3. 设置前端
+#### 5. 设置前端
 
 ```bash
 cd ../client
@@ -202,7 +259,7 @@ npm install
 npm start
 ```
 
-#### 4. 访问应用
+#### 6. 访问应用
 
 打开浏览器，访问 `http://localhost:3000`，即可使用 Hello Word 应用。
 

@@ -36,6 +36,7 @@ app.use('/api/learning', require('./routes/learning'));
 app.use('/api/notebook', require('./routes/notebook'));
 app.use('/api/statistics', require('./routes/statistics'));
 app.use('/api/plans', require('./routes/plans'));
+app.use('/api/vocabulary-test', require('./routes/vocabulary-test'));
 app.use('/api', require('./routes/api')); // 通用API路由
 
 // 静态资源发布
